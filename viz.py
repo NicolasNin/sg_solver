@@ -103,19 +103,51 @@ def render_svg(board: "board_module.Board", filename: str = "solution.svg") -> s
         points = [vertex_to_pixel(vx, vy) for vx, vy in verts]
         points_str = " ".join(f"{px:.1f},{py:.1f}" for px, py in points)
         
-        # Determine color
+        # Determine color and if piece has ring (non-flippable)
+        has_ring = False
         if pos in board.occupied:
             piece_name = board.occupied[pos]
             if piece_name is None:
                 color = BLOCKER_COLOR
             else:
                 color = PIECE_COLORS.get(piece_name, "#CCCCCC")
+                # Check if this piece is non-flippable (gets a ring)
+                from pieces import ALL_PIECES
+                for p in ALL_PIECES:
+                    if p.name == piece_name:
+                        has_ring = not p.can_flip
+                        break
         else:
             color = "#1b2856"  # Empty cells dark blue
         
+        # Draw outer triangle
         svg_parts.append(
             f'<polygon points="{points_str}" fill="{color}" stroke="#000" stroke-width="1"/>'
         )
+        
+        # Draw ring effect for non-flippable pieces
+        if has_ring and piece_name is not None:
+            # Compute center of triangle
+            cx = sum(p[0] for p in points) / 3
+            cy = sum(p[1] for p in points) / 3
+            
+            # Scale points toward center for inner triangles
+            def scale_points(pts, factor):
+                return [(cx + (px - cx) * factor, cy + (py - cy) * factor) for px, py in pts]
+            
+            # White ring (middle layer) - 70% size
+            ring_points = scale_points(points, 0.7)
+            ring_str = " ".join(f"{px:.1f},{py:.1f}" for px, py in ring_points)
+            svg_parts.append(
+                f'<polygon points="{ring_str}" fill="#FFFFFF" stroke="none"/>'
+            )
+            
+            # Inner color (top layer) - 45% size
+            inner_points = scale_points(points, 0.45)
+            inner_str = " ".join(f"{px:.1f},{py:.1f}" for px, py in inner_points)
+            svg_parts.append(
+                f'<polygon points="{inner_str}" fill="{color}" stroke="none"/>'
+            )
         
         # Add cell ID label
         cx = sum(p[0] for p in points) / 3

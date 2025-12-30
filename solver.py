@@ -4,10 +4,62 @@ Star Genius puzzle solver using backtracking.
 
 from board import Board, Piece, TrianglePos
 from pieces import ALL_PIECES, PIECE_ORIENTATIONS
-from viz import render_svg,display_board
+from viz import render_svg, display_board
+import time
+
+# Difficulty levels: pieces that cannot be placed adjacent to each other
+# Level 0 (Starter): No constraints
+# Level 1 (Junior): T1, T2 can't be adjacent
+# Level 2 (Expert): T1, T2, 3B can't be adjacent  
+# Level 3 (Master): T1, T2, 3B, TF can't be adjacent
+# Level 4 (Wizard): T1, T2, 3B, TF, L4 can't be adjacent
+DIFFICULTY_LEVELS: dict[int, set[str]] = {
+    0: set(),
+    1: {"T1", "T2"},
+    2: {"T1", "T2", "3B"},
+    3: {"T1", "T2", "3B", "TF"},
+    4: {"T1", "T2", "3B", "TF", "L4"},
+}
 
 
-def solve(board: Board, remaining_pieces: list[Piece]) -> Board | None:
+def check_difficulty_constraints(
+    board: Board,
+    piece: Piece,
+    anchor: TrianglePos,
+    forbidden_neighbors: set[str]
+) -> bool:
+    """Check if placement respects difficulty adjacency constraints.
+    
+    Returns True if placement is allowed, False if it violates constraints.
+    
+    Args:
+        board: Current board state
+        piece: Piece being placed
+        anchor: Anchor position for placement
+        forbidden_neighbors: Set of piece names that can't be adjacent to each other
+    """
+    # If this piece isn't in the constrained set, always allowed
+    if piece.name not in forbidden_neighbors:
+        return True
+    
+    # Check each triangle of the piece
+    for triangle in piece.triangles:
+        pos = board._translate(triangle, anchor)
+        if pos is None:
+            continue
+        
+        # Check all neighbors
+        for neighbor in [pos.left(), pos.right(), pos.vertical()]:
+            if neighbor in board.occupied:
+                neighbor_piece = board.occupied[neighbor]
+                # If neighbor is also a constrained piece, constraint violated
+                if neighbor_piece in forbidden_neighbors:
+                    return False
+    
+    return True
+
+
+def solve(board: Board, remaining_pieces: list[Piece], slow: float = 0, difficulty: int = 0) -> Board | None:
     """
     Backtracking solver. Returns solved board or None if no solution.
     
@@ -15,9 +67,14 @@ def solve(board: Board, remaining_pieces: list[Piece]) -> Board | None:
     - Pick most constrained empty cell (fewest empty neighbors)
     - Try each remaining piece in each orientation
     - For each placement that covers the empty cell, recurse
+    
+    Args:
+        difficulty: 0-4, determines adjacency constraints
     """
     svg_file = render_svg(board)
     #display_board(board)
+    
+    forbidden = DIFFICULTY_LEVELS.get(difficulty, set())
     
     if not remaining_pieces:
         return board if board.is_solved() else None
@@ -39,13 +96,19 @@ def solve(board: Board, remaining_pieces: list[Piece]) -> Board | None:
             
             for anchor in anchors:
                 if board.can_place(oriented_piece, anchor):
+                    # Check difficulty constraints
+                    if not check_difficulty_constraints(board, oriented_piece, anchor, forbidden):
+                        continue  # Constraint violated, try next
+                    
                     # Place and recurse
                     new_board = board.copy()
                     new_board.place(oriented_piece, anchor)
                     
                     new_remaining = [p for p in remaining_pieces if p.name != piece.name]
-                    print(f"cells chosen {empty.cell_id} pieces {piece.name} remaining {len(new_remaining)}")
-                    result = solve(new_board, new_remaining)
+                    if slow > 0:
+                        time.sleep(slow)
+                        print(f"cells chosen {empty.cell_id} pieces {piece.name} remaining {len(new_remaining)}")
+                    result = solve(new_board, new_remaining, slow, difficulty)
                     
                     if result is not None:
                         return result
@@ -81,10 +144,15 @@ def reverse_translate(target: TrianglePos, triangle: TrianglePos) -> TrianglePos
     return TrianglePos(x=anchor_x, y=anchor_y, points_up=anchor_up)
 
 
-def solve_puzzle(blocker_ids: list[int]) -> Board | None:
+def solve_puzzle(blocker_ids: list[int], slow: float = 0, difficulty: int = 0) -> Board | None:
     """
     Main entry point. Takes 7 dice values (cell IDs to block).
     Returns solved board or None.
+    
+    Args:
+        blocker_ids: 7 cell IDs to block
+        slow: Delay between steps (for visualization)
+        difficulty: 0-4, determines adjacency constraints
     """
     if len(blocker_ids) != 7:
         raise ValueError("Need exactly 7 blocker IDs")
@@ -98,29 +166,19 @@ def solve_puzzle(blocker_ids: list[int]) -> Board | None:
     # Sort pieces by size (largest first)
     pieces_by_size = sorted(ALL_PIECES, key=lambda p: len(p.triangles), reverse=True)
     
-    return solve(board, pieces_by_size)
+    return solve(board, pieces_by_size, slow, difficulty)
 
 
 if __name__ == "__main__":
     from viz import display_board
-    from dices import fixed_roll, TEST_ROLLS
-    
-    # Global counter for debugging
-    attempts = 0
-    
-    def solve_with_counter(board: Board, remaining_pieces: list[Piece]) -> Board | None:
-        global attempts
-        attempts += 1
-        if attempts % 10000 == 0:
-            print(f"  {attempts} attempts, {len(remaining_pieces)} pieces left")
-        return solve(board, remaining_pieces)
+    from dices import fixed_roll, TEST_ROLLS, roll_dice
     
     # Use fixed roll for testing
     #blockers = fixed_roll()
-    blockers = TEST_ROLLS[1]
+    blockers = roll_dice()
     print(f"Solving with blockers at cells: {blockers}")
     
-    result = solve_puzzle(blockers)
+    result = solve_puzzle(blockers,slow=0.1,difficulty=4)
     
     if result:
         print(f"\nSolution found after {attempts} attempts!")

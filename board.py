@@ -147,12 +147,18 @@ class Piece:
         flipped = tuple(t.flip_x() for t in self.triangles)
         return Piece(self.name, flipped, self.can_flip)._normalize()
 
-    def all_orientations(self) -> list["Piece"]:
+    def all_orientations(self, force_flip: bool = False) -> list["Piece"]:
         """Return all unique orientations.
         
-        Uses 6 rotations (60° each). If can_flip, also includes flipped versions.
+        Uses 6 rotations (60° each). If can_flip or force_flip, also includes flipped versions.
         Deduplicates by canonical key (shape comparison).
+        
+        Args:
+            force_flip: If True, always include flipped versions (ignores can_flip).
+                       Used for easier difficulty modes.
         """
+        include_flips = self.can_flip or force_flip
+        
         seen = set()
         orientations = []
         
@@ -165,7 +171,7 @@ class Piece:
                 orientations.append(p)
             
             # Add flipped version if allowed
-            if self.can_flip:
+            if include_flips:
                 flipped = p.flip()
                 flip_key = flipped._canonical_key()
                 if flip_key not in seen:

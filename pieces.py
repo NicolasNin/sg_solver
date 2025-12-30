@@ -15,12 +15,12 @@ def make_piece(name: str, coords: list[tuple[int, int, bool]], can_flip: bool = 
 
 TRAPEZOID_1 = make_piece("T1", [
     (0, 0, True),
-])
+], can_flip=False)
 
 TRAPEZOID_2 = make_piece("T2", [
     (0, 0, True),
     (1, 0, False),
-])
+], can_flip=False)
 
 TRAPEZOID_3 = make_piece("T3", [
     (0, 0, True),
@@ -49,7 +49,7 @@ TRIFORCE = make_piece("TF", [
     (1, 0, True),  
     (-1, 0, True),  
     (0, 1, True),   
-])
+], can_flip=False)
 
 # L-shape: trapezoid_3 + triangle on side
 L_SHAPE_4 = make_piece("L4", [
@@ -57,7 +57,7 @@ L_SHAPE_4 = make_piece("L4", [
     (1, 0, False),
     (2, 0, True),
     (0, -1, False),
-])
+], can_flip=False)
 
 # Extended L: trapezoid_3 + two triangles
 EXTENDED_L_5 = make_piece("EL", [
@@ -91,7 +91,7 @@ TRAPEZOID_3B = make_piece("3B", [
     (0, 0, True),
     (1, 0, False),
     (2, 0, True),
-])
+], can_flip=False)
 
 # All pieces for the solver (11 pieces, 41 triangles + 7 blockers = 48)
 ALL_PIECES = [
@@ -108,6 +108,20 @@ ALL_PIECES = [
     TRAP4_DOWN,
 ]
 
+# Pieces with adjacency constraints (for difficulty levels)
+# Level 0: No constraints
+# Level 1: T1, T2 can't be adjacent
+# Level 2: T1, T2, 3B can't be adjacent
+# Level 3: T1, T2, 3B, TF can't be adjacent
+# Level 4 (Wizard): T1, T2, 3B, TF, L4 can't be adjacent
+CONSTRAINED_PIECES = [
+    TRAPEZOID_1,   # 1
+    TRAPEZOID_2,   # 2
+    TRAPEZOID_3B,  # 3
+    TRIFORCE,      # 4
+    L_SHAPE_4,     # 5
+]
+
 # Precompute all orientations for each piece (for solver performance)
 PIECE_ORIENTATIONS: dict[str, list] = {
     piece.name: piece.all_orientations() for piece in ALL_PIECES
@@ -115,17 +129,17 @@ PIECE_ORIENTATIONS: dict[str, list] = {
 
 # Colors for each piece (for visualization)
 PIECE_COLORS: dict[str, str] = {
-    "T1": "#00325b",  # Red
-    "T2": "#ffc100",  # Teal
-    "T3": "#00a0de",  # Blue
-    "3B": "#00a0de",  # Sage green
-    "T4": "#ee68a7",  # Yellow
-    "T5": "#de241b",  # Plum
-    "TF": "#7a2d9e",  # Mint
-    "L4": "#ff8717",  # Gold
-    "EL": "#006c43",  # Purple
-    "4U": "#8bd100",  # Sky blue
-    "4D": "#8a5e3c",  # Orange
+    "T1": "#00325b",  # deep blue
+    "T2": "#ffc100",  # Yellow
+    "T3": "#00a0de",  # Cyan
+    "3B": "#00a0de",  # Cyan
+    "T4": "#ee68a7",  # Rose
+    "T5": "#de241b",  # Red
+    "TF": "#7a2d9e",  # Purple
+    "L4": "#ff8717",  # ORANGE
+    "EL": "#006c43",  # teal
+    "4U": "#8bd100",  # lime
+    "4D": "#8a5e3c",  # BRown
 }
 
 BLOCKER_COLOR = "#FFFFFF"  # Dark gray for blockers
