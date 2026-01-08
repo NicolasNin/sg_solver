@@ -2,7 +2,7 @@
 Visualization utilities for Star Genius board.
 """
 
-import board as board_module
+from . import board as board_module
 
 
 def display_board(board: "board_module.Board") -> None:

@@ -2,9 +2,9 @@
 Star Genius puzzle solver using backtracking.
 """
 
-from board import Board, Piece, TrianglePos
-from pieces import ALL_PIECES, PIECE_ORIENTATIONS
-from viz import render_svg, display_board
+from .board import Board, Piece, TrianglePos
+from .pieces import ALL_PIECES, PIECE_ORIENTATIONS
+from .viz import render_svg, display_board
 import time
 
 # Difficulty levels: pieces that cannot be placed adjacent to each other

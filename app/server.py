@@ -4,11 +4,7 @@ Star Genius - FastAPI Backend Server
 Serves the web app and provides API endpoints for solving and board detection.
 """
 
-import sys
 from pathlib import Path
-
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.staticfiles import StaticFiles
@@ -16,9 +12,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import uvicorn
 
-from board import Board
-from solver import solve_puzzle
-from pieces import ALL_PIECES, PIECE_ORIENTATIONS
+from sg_solver import Board, solve_puzzle, ALL_PIECES, PIECE_ORIENTATIONS
 
 app = FastAPI(title="Star Genius")
 

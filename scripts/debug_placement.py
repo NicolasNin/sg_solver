@@ -3,8 +3,12 @@ Debug script to test piece placement on the board.
 Tests how EXTENDED_L_5 gets placed and translated.
 """
 
-from board import Board, TrianglePos, Piece
-from pieces import EXTENDED_L_5, PIECE_ORIENTATIONS
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from sg_solver.board import Board, TrianglePos, Piece
+from sg_solver.pieces import EXTENDED_L_5, PIECE_ORIENTATIONS
 
 
 def show_placement(board: Board, piece: Piece, anchor: TrianglePos):

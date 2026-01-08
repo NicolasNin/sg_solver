@@ -10,7 +10,7 @@ Pipeline:
 Let's understand each conversion step.
 """
 
-from board import Board, TrianglePos
+from .board import Board, TrianglePos
 
 
 def get_cell_by_id(board: Board, cell_id: int) -> tuple[TrianglePos, int]:

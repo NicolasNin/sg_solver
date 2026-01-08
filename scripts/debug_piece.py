@@ -2,8 +2,12 @@
 Debug script to verify piece connectivity and orientations after y-axis fix.
 """
 
-from board import TrianglePos, Piece, Board
-from pieces import EXTENDED_L_5, ALL_PIECES,TRAPEZOID_4
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from sg_solver.board import TrianglePos, Piece, Board
+from sg_solver.pieces import EXTENDED_L_5, ALL_PIECES, TRAPEZOID_4
 
 
 def check_connectivity(piece: Piece) -> tuple[bool, list[str]]:

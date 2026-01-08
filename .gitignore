@@ -1,6 +1,7 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
 notebooks/
+.ipynb_checkpoints/
 data/
 *.py[cod]
 *$py.class

@@ -2,7 +2,7 @@
 Puzzle piece definitions for Star Genius.
 """
 
-from board import TrianglePos, Piece
+from .board import TrianglePos, Piece
 
 
 def make_piece(name: str, coords: list[tuple[int, int, bool]], can_flip: bool = True) -> Piece:
