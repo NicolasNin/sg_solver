@@ -58,8 +58,8 @@ def render_svg(board: "board_module.Board", filename: str = "solution.svg") -> s
     Render board to SVG file with colored pieces.
     Returns the filename.
     """
-    from pieces import PIECE_COLORS, BLOCKER_COLOR
-    from conversion_utils import skewed_to_svg
+    from .pieces import PIECE_COLORS, BLOCKER_COLOR
+    from .conversion_utils import skewed_to_svg
     import math
     
     # SVG settings
@@ -112,7 +112,7 @@ def render_svg(board: "board_module.Board", filename: str = "solution.svg") -> s
             else:
                 color = PIECE_COLORS.get(piece_name, "#CCCCCC")
                 # Check if this piece is non-flippable (gets a ring)
-                from pieces import ALL_PIECES
+                from .pieces import ALL_PIECES
                 for p in ALL_PIECES:
                     if p.name == piece_name:
                         has_ring = not p.can_flip
