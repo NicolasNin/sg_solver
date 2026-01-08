@@ -195,6 +195,12 @@ class Board:
     """The star-shaped game board."""
     cells: dict[TrianglePos, BoardCell]      # Board structure (shared, immutable)
     occupied: dict[TrianglePos, str | None]  # Piece name or None=blocker
+    placements: dict[str, tuple[Piece, TrianglePos]] = None  # Track placed piece objects (for orientation)
+
+    def __post_init__(self):
+        if self.placements is None:
+            # Bypass frozen dataclass check if needed, but this is a standard dataclass not frozen
+            self.placements = {}
 
     @classmethod
     def create_star(cls) -> "Board":
@@ -227,13 +233,14 @@ class Board:
                 cells[pos] = BoardCell(pos, cell_id)
                 cell_id += 1
 
-        return cls(cells=cells, occupied={})
+        return cls(cells=cells, occupied={}, placements={})
 
     def copy(self) -> "Board":
         """Copy for backtracking - shares cells, copies occupied."""
         return Board(
             cells=self.cells,
-            occupied=self.occupied.copy()
+            occupied=self.occupied.copy(),
+            placements=self.placements.copy()
         )
 
     def place_blocker(self, cell_id: int) -> None:
@@ -271,12 +278,15 @@ class Board:
         for triangle in piece.triangles:
             pos = self._translate(triangle, anchor)
             self.occupied[pos] = piece.name
+        self.placements[piece.name] = (piece, anchor)
 
     def remove(self, piece_name: str) -> None:
         """Remove all cells occupied by a piece."""
         to_remove = [pos for pos, name in self.occupied.items() if name == piece_name]
         for pos in to_remove:
             del self.occupied[pos]
+        if piece_name in self.placements:
+            del self.placements[piece_name]
 
     def empty_cells(self) -> list[BoardCell]:
         """Get all unoccupied cells."""
