@@ -19,17 +19,8 @@ from sg_solver import Board, solve_puzzle, ALL_PIECES, PIECE_ORIENTATIONS
 app = FastAPI(title="Star Genius")
 
 # Enable CORS
-default_origins = [
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://github.ninin.me",
-    "https://nicolasnin.github.io",
-    "https://sg.ninin.space"
-]
-env_origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
-origins = [o.strip() for o in default_origins + env_origins if o.strip()]
+# Allow all origins for simplicity and robust public access
+origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
