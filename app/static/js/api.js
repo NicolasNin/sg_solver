@@ -4,8 +4,14 @@
  * Backend API calls for solver and board detection.
  */
 
-const API_BASE = '/api';
-
+const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+// Force remote API for testing
+const API_BASE = 'https://sg.ninin.space/api';
+/*
+const API_BASE = IS_LOCAL
+    ? 'http://localhost:8000/api'
+    : 'https://sg.ninin.space/api'; // VPS + Caddy HTTPS
+*/
 // Solve the current board state
 async function solvePuzzle(boardState) {
     const response = await fetch(`${API_BASE}/solve`, {
