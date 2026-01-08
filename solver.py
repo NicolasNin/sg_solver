@@ -162,7 +162,9 @@ def solve_puzzle(blocker_ids: list[int], slow: float = 0, difficulty: int = 0) -
     # Place blockers
     for cell_id in blocker_ids:
         board.place_blocker(cell_id)
-    
+    svg_file = render_svg(board)
+    #ime.sleep(2)
+
     # Sort pieces by size (largest first)
     pieces_by_size = sorted(ALL_PIECES, key=lambda p: len(p.triangles), reverse=True)
     
@@ -178,7 +180,7 @@ if __name__ == "__main__":
     blockers = roll_dice()
     print(f"Solving with blockers at cells: {blockers}")
     
-    result = solve_puzzle(blockers,slow=0.1,difficulty=4)
+    result = solve_puzzle(blockers,slow=0.02,difficulty=4)
     
     if result:
         print(f"\nSolution found after {attempts} attempts!")

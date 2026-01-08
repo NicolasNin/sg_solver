@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Star Genius</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .timer {
+            font-family: monospace;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #ccc;
+            margin-left: 15px;
+            padding: 5px 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Start Modal -->
+    <div id="start-modal" class="modal">
+        <div class="modal-content">
+            <h1>⭐ Star Genius</h1>
+            <p>Choose how to start:</p>
+            <div class="modal-buttons">
+                <button id="btn-random" class="btn btn-primary">🎲 Random Game</button>
+                <button id="btn-photo" class="btn btn-secondary">📷 Load from Photo</button>
+            </div>
+            <input type="file" id="photo-input" accept="image/*" style="display: none;">
+        </div>
+    </div>
+
+    <!-- Main Game Area -->
+    <div id="game-container" class="hidden">
+        <header>
+            <h1>⭐ Star Genius</h1>
+            <div class="header-controls">
+                <button id="btn-new-game" class="btn btn-small">New Game</button>
+                <div id="timer" class="timer">00:00</div>
+            </div>
+        </header>
+
+        <main>
+            <!-- Piece Palette -->
+            <aside id="palette">
+                <h2>Pieces</h2>
+                <div id="piece-list"></div>
+            </aside>
+
+            <!-- Board Area -->
+            <section id="board-container">
+                <svg id="board-svg" viewBox="0 0 500 500"></svg>
+                <div id="status-bar">
+                    <span id="status-text">Select a piece from the palette</span>
+                </div>
+            </section>
+
+            <!-- Controls -->
+            <aside id="controls">
+                <h2>Controls</h2>
+                <div class="control-group">
+                    <button id="btn-rotate" class="btn">↻ Rotate (R)</button>
+                    <button id="btn-flip" class="btn">↔ Flip (F)</button>
+                </div>
+                <div class="control-group">
+                    <button id="btn-reset" class="btn btn-warning">Reset Board</button>
+                </div>
+                <div class="control-group">
+                    <button id="btn-solve" class="btn btn-primary">💡 Help Me!</button>
+                </div>
+                <div id="controls-info">
+                    <p><strong>Keyboard:</strong></p>
+                    <ul>
+                        <li><kbd>R</kbd> Rotate</li>
+                        <li><kbd>F</kbd> Flip</li>
+                        <li><kbd>Esc</kbd> Deselect</li>
+                    </ul>
+                    <p><strong>Mouse:</strong></p>
+                    <ul>
+                        <li>Click piece to select</li>
+                        <li>Click cell to place</li>
+                        <li>Right-click to remove</li>
+                    </ul>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading" class="hidden">
+        <div class="spinner"></div>
+        <p>Solving puzzle...</p>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/js/pieces.js"></script>
+    <script src="/static/js/board.js"></script>
+    <script src="/static/js/game.js"></script>
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/main.js"></script>
+</body>
+
+</html>

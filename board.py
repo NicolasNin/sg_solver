@@ -298,6 +298,24 @@ class Board:
                 count += 1
         return count
 
+    def generate_cell_graph(self) -> dict[int, list[int]]:
+        """Generate adjacency graph mapping cell_id to neighbor cell_ids.
+        
+        Returns a dict where keys are cell_ids (1-48) and values are lists
+        of neighbor cell_ids that exist on the board.
+        """
+        graph: dict[int, list[int]] = {}
+        
+        for pos, cell in self.cells.items():
+            neighbors = [pos.left(), pos.right(), pos.vertical()]
+            neighbor_ids = []
+            for n in neighbors:
+                if n in self.cells:
+                    neighbor_ids.append(self.cells[n].cell_id)
+            graph[cell.cell_id] = neighbor_ids
+        
+        return graph
+
     def most_constrained_empty_cell(self) -> BoardCell | None:
         """Get the empty cell with fewest empty neighbors (most constrained).
         
