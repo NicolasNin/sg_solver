@@ -10,13 +10,13 @@ const SG = window.StarGenius;
 
 // Board configuration
 const BOARD_CONFIG = {
-    scale: 50,          // Pixels per unit
-    margin: 30,         // SVG margin
+    scale: 95,          // Pixels per unit
+    margin: 10,         // SVG margin (reduced to save vertical space)
     cellStroke: '#1a1a2e',
     cellStrokeWidth: 1,
     emptyColor: '#1b2856',
     labelColor: '#666',
-    labelSize: 10,
+    labelSize: 24,      // Smaller labels (was 40)
 };
 
 // Star layout: [visualRow, startX, numCells]
@@ -61,8 +61,10 @@ function vertexToPixel(vx, vy, bounds) {
     const ny = vy;
     const svgY = maxVy - ny;  // Flip y for SVG
 
-    const px = margin + (nx - minVx) * scale;
-    const py = margin + svgY * h;
+    // const svgY = maxVy - ny;  // Duplicate removed
+
+    const px = bounds.marginX + (nx - minVx) * scale;
+    const py = bounds.marginY + svgY * h;
 
     return [px, py];
 }
@@ -80,14 +82,25 @@ function calculateBounds(cells) {
     const maxVy = Math.max(...allVerts.map(v => v[1]));
 
     const h = BOARD_CONFIG.scale * Math.sqrt(3) / 2;
-    const width = BOARD_CONFIG.margin * 2 + (maxVx - minVx + (maxVy - minVy) * 0.5 + 1) * BOARD_CONFIG.scale;
-    const height = BOARD_CONFIG.margin * 2 + (maxVy - minVy + 1) * h;
+
+    // Scale 120
+    // REMOVED side panel width from calculation to force Zoom on the board.
+    // Pieces will live in "overflow" space.
+    const boardWidth = (maxVx - minVx + (maxVy - minVy) * 0.5 + 1) * BOARD_CONFIG.scale;
+
+    // Tight width
+    // Tight width
+    const width = BOARD_CONFIG.margin * 2 + boardWidth;
+    // No extra height or centering logic - just fit the board
+    const boardHeight = (maxVy - minVy + 1) * h;
+    const height = BOARD_CONFIG.margin * 2 + boardHeight;
 
     return {
         minVx, maxVx, minVy, maxVy,
         width, height,
         scale: BOARD_CONFIG.scale,
-        margin: BOARD_CONFIG.margin,
+        marginX: BOARD_CONFIG.margin,
+        marginY: BOARD_CONFIG.margin, // No extra Y padding
     };
 }
 
@@ -148,6 +161,9 @@ class Board {
         this.cellElements = new Map();  // posKey -> polygon element
         this.labelElements = new Map();
 
+        // New: Independent piece management
+        this.pieceElements = new Map(); // pieceName -> SVGGroupElement
+
         this._setupSVG();
         this.render();
     }
@@ -165,11 +181,13 @@ class Board {
         // Create groups for layering
         this.cellGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         this.labelGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        this.pieceGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g'); // New container for pieces
         this.ghostGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         this.ghostGroup.setAttribute('class', 'ghost-piece');
 
         this.svg.appendChild(this.cellGroup);
         this.svg.appendChild(this.labelGroup);
+        this.svg.appendChild(this.pieceGroup); // Layer pieces above cells
         this.svg.appendChild(this.ghostGroup);
     }
 
@@ -209,19 +227,161 @@ class Board {
         return false;
     }
 
-    // Place piece on board
+    /* 
+     * NEW PIECE RENDERING API
+     * Creates independent piece groups rather than coloring cells 
+     */
+
+    // Render a piece object at a specific visual coordinate (x, y = centroid position)
+    renderPiece(piece, x, y, rotationIndex = 0) {
+        // Remove existing if present
+        if (this.pieceElements.has(piece.name)) {
+            this.pieceElements.get(piece.name).remove();
+        }
+
+        const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        group.setAttribute('class', 'piece-group');
+        group.setAttribute('data-piece', piece.name);
+        group.style.cursor = 'grab';
+
+        // Store metadata on the DOM element for easy access
+        group.dataset.rotation = rotationIndex;
+
+        const scale = BOARD_CONFIG.scale;
+        const h = scale * Math.sqrt(3) / 2;
+        const color = SG.PIECE_COLORS[piece.name] || '#CCCCCC';
+
+        // Get piece centroid (in normal coords) - this is where (x,y) will be placed
+        const pieceCentroid = piece.getCentroid();
+
+        for (const tri of piece.triangles) {
+            const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            const verts = tri.toVertices();
+
+            const points = verts.map(([vx, vy]) => {
+                const nx = vx + vy * 0.5;
+                const ny = vy;
+
+                // Position relative to piece centroid (not anchor)
+                const px = (nx - pieceCentroid[0]) * scale;
+                const py = -(ny - pieceCentroid[1]) * h; // SVG y flip
+
+                return [px, py];
+            });
+
+            polygon.setAttribute('points', points.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' '));
+            polygon.setAttribute('fill', color);
+            polygon.setAttribute('stroke', '#fff');
+            polygon.setAttribute('stroke-width', '2');
+
+            group.appendChild(polygon);
+        }
+
+        this.pieceGroup.appendChild(group);
+        this.pieceElements.set(piece.name, group);
+
+        this.updatePiecePosition(piece.name, x, y);
+        return group;
+    }
+
+    updatePiecePosition(name, x, y) {
+        const group = this.pieceElements.get(name);
+        if (group) {
+            group.setAttribute('transform', `translate(${x}, ${y})`);
+        }
+    }
+
+    removePieceElement(name) {
+        const group = this.pieceElements.get(name);
+        if (group) {
+            group.remove();
+            this.pieceElements.delete(name);
+        }
+    }
+
+    // Convert pixel coordinate back to nearest cell
+    getNearestCell(x, y) {
+        let nearest = null;
+        let minDistSq = Infinity;
+
+        for (const [key, { pos, cellId }] of this.cells) {
+            const center = getCentroid(pos.toVertices().map(([vx, vy]) => vertexToPixel(vx, vy, this.bounds)));
+            const dx = center[0] - x;
+            const dy = center[1] - y;
+            const distSq = dx * dx + dy * dy;
+
+            if (distSq < minDistSq) {
+                minDistSq = distSq;
+                nearest = pos;
+            }
+        }
+
+        // Threshold (e.g., must be within 30px)
+        if (minDistSq > 30 * 30) return null;
+        return nearest;
+    }
+
+    // Get pixel center of a cell
+    getCellCenter(pos) {
+        if (!pos) return null;
+        const verts = pos.toVertices();
+        const pixels = verts.map(([vx, vy]) => vertexToPixel(vx, vy, this.bounds));
+        return getCentroid(pixels);
+    }
+
+    // Get the snap position for a piece (where the centroid should be placed)
+    // given the anchor cell position. This accounts for the offset from anchor to centroid.
+    getSnapPositionForPiece(piece, anchorCellPos) {
+        if (!anchorCellPos) return null;
+
+        // Get anchor cell center in pixels
+        const anchorCellCenter = this.getCellCenter(anchorCellPos);
+        if (!anchorCellCenter) return null;
+
+        // Get the offset from anchor to centroid in normal coords
+        const centroidOffset = piece.getCentroidOffset();
+
+        // Convert offset to pixels
+        const scale = BOARD_CONFIG.scale;
+        const h = scale * Math.sqrt(3) / 2;
+        const offsetPx = [
+            centroidOffset[0] * scale,
+            -centroidOffset[1] * h  // SVG y-flip
+        ];
+
+        // Centroid position = anchor position + offset
+        return [
+            anchorCellCenter[0] + offsetPx[0],
+            anchorCellCenter[1] + offsetPx[1]
+        ];
+    }
+
+    // Find the nearest anchor cell for a piece given its centroid position
+    // Returns the cell that the anchor triangle would be closest to
+    getNearestAnchorCell(piece, centroidX, centroidY) {
+        // Get the offset from centroid to anchor (reverse of centroidOffset)
+        const centroidOffset = piece.getCentroidOffset();
+        const scale = BOARD_CONFIG.scale;
+        const h = scale * Math.sqrt(3) / 2;
+
+        // Compute where the anchor would be in pixel space
+        const anchorX = centroidX - centroidOffset[0] * scale;
+        const anchorY = centroidY + centroidOffset[1] * h;  // Reverse SVG y-flip
+
+        // Find nearest cell to anchor position
+        return this.getNearestCell(anchorX, anchorY);
+    }
+
+    // Legacy support methods (refactored to just use logic, not rendering)
     placePiece(pieceName, positions) {
         for (const pos of positions) {
             const key = pos.key();
             this.occupied.set(key, pieceName);
-            this._updateCell(key, pieceName);
+            // this._updateCell(key, pieceName); // No longer updating cell colors
         }
-        // Force synchronous layout to ensure immediate visual update
-        this.svg.getBBox();
     }
 
-    // Remove piece from board
-    removePiece(pieceName) {
+    removePiece(pieceName, keepVisual = true) {
         const toRemove = [];
         for (const [key, name] of this.occupied) {
             if (name === pieceName) {
@@ -230,7 +390,10 @@ class Board {
         }
         for (const key of toRemove) {
             this.occupied.delete(key);
-            this._updateCell(key, 'empty');
+            // this._updateCell(key, 'empty'); // No longer updating cell colors
+        }
+        if (!keepVisual) {
+            this.removePieceElement(pieceName);
         }
         return toRemove.length > 0;
     }
@@ -331,17 +494,8 @@ class Board {
             opacity = 0.4;
         }
 
-        // Use FIRST triangle as anchor (this is what placement uses)
-        const anchorTri = piece.triangles[0];
-        const anchorVerts = anchorTri.toVertices();
-
-        // Find centroid of anchor triangle in skewed coords
-        const anchorVx = anchorVerts.reduce((s, v) => s + v[0], 0) / 3;
-        const anchorVy = anchorVerts.reduce((s, v) => s + v[1], 0) / 3;
-
-        // Convert anchor centroid to normal coords
-        const anchorNx = anchorVx + anchorVy * 0.5;
-        const anchorNy = anchorVy;
+        // Use piece centroid as the center point (consistent with renderPiece)
+        const pieceCentroid = piece.getCentroid();
 
         for (const tri of piece.triangles) {
             const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
@@ -353,9 +507,9 @@ class Board {
                 const nx = vx + vy * 0.5;
                 const ny = vy;
 
-                // Position relative to mouse (y inverted for SVG)
-                const px = mouseX + (nx - anchorNx) * scale;
-                const py = mouseY - (ny - anchorNy) * h;
+                // Position relative to mouse, centered on piece centroid
+                const px = mouseX + (nx - pieceCentroid[0]) * scale;
+                const py = mouseY - (ny - pieceCentroid[1]) * h;
 
                 return [px, py];
             });

@@ -15,8 +15,13 @@ class Game {
         this.currentOrientation = 0;    // Index into orientations array
         this.blockers = [];             // Cell IDs of blockers
         this.lastMousePos = null;        // Last mouse position {x, y, cell}
-        this.lastMousePos = null;        // Last mouse position {x, y, cell}
+        this.lastMousePos = null;        // Last mouse position {x, y} relative to SVG
         this._pendingMouseMove = null;   // Throttle flag for mousemove
+
+        // DnD State
+        this.isDragging = false;
+        this.draggedPieceName = null;
+        this.dragOffset = { x: 0, y: 0 }; // Offset from mouse to piece anchor
 
         this.timerInterval = null;
         this.startTime = null;
@@ -33,16 +38,20 @@ class Game {
                 this.flip();
             } else if (e.key === 'Escape') {
                 this.deselect();
+            } else if (e.key === 't' || e.key === 'T') {
+                // DEBUG: Emit custom event for test-solve
+                console.log('[Game] T pressed - dispatching test-solve event');
+                document.dispatchEvent(new CustomEvent('star-genius-test-solve'));
             }
         });
 
-        // Cell click handling
-        this.board.svg.addEventListener('click', (e) => {
-            const cell = e.target.closest('.board-cell');
-            if (cell) {
-                this._onCellClick(cell);
-            }
-        });
+        // Cell click handling - DISABLED for DnD to prevent conflicts
+        // this.board.svg.addEventListener('click', (e) => {
+        //     const cell = e.target.closest('.board-cell');
+        //     if (cell) {
+        //         this._onCellClick(cell);
+        //     }
+        // });
 
         // Right-click to remove
         this.board.svg.addEventListener('contextmenu', (e) => {
@@ -64,12 +73,28 @@ class Game {
 
         // Mouse wheel for rotation
         this.board.svg.addEventListener('wheel', (e) => {
-            if (this.selectedPiece) {
+            if (this.selectedPiece || this.isDragging) {
                 e.preventDefault();
                 const direction = e.deltaY > 0 ? 1 : -1;
                 this.rotate(direction);
             }
         }, { passive: false });
+
+        // Drag and Drop Events
+        this.board.svg.addEventListener('mousedown', (e) => {
+            this._onMouseDown(e);
+        });
+
+        this.board.svg.addEventListener('mouseup', (e) => {
+            this._onMouseUp(e);
+        });
+
+        // Global mouse up to catch drops outside SVG
+        document.addEventListener('mouseup', () => {
+            if (this.isDragging) {
+                this._cancelDrag();
+            }
+        });
     }
 
     // Initialize game with blockers
@@ -85,8 +110,36 @@ class Game {
             this.board.placeBlocker(id);
         }
 
+        // Initialize pieces on the sidelines
+        // Initialize pieces with 3-zone layout (Left, Right, Bottom)
+        const INITIAL_POSITIONS = {
+            // Left Zone
+            "4D": { x: 50, y: 120 },    // Brown - Lowered start
+            "T4": { x: 50, y: 260 },   // Pink - Spaced out (+140)
+            "TF": { x: 50, y: 400 },   // Purple
+            "T3": { x: 50, y: 540 },   // Cyan
+            "T1": { x: 100, y: 680 },  // Blue
+
+            // Right Zone
+            "EL": { x: 1000, y: 120 },   // Green - Lowered start
+            "L4": { x: 1000, y: 260 },  // Orange
+            "3B": { x: 1000, y: 400 },  // Cyan pair
+            "T2": { x: 1050, y: 540 },  // Yellow
+
+            // Bottom Zone
+            "T5": { x: 300, y: 700 },   // Red - Raised slightly
+            "4U": { x: 700, y: 700 },   // Lime
+        };
+
+        const allPieces = SG_GAME.ALL_PIECES; // Ensure we iterate all known pieces
+        allPieces.forEach(name => {
+            const piece = SG_GAME.PIECE_DEFINITIONS[name];
+            const pos = INITIAL_POSITIONS[name] || { x: 0, y: 0 }; // Fallback
+            this.board.renderPiece(piece, pos.x, pos.y, 0);
+        });
+
         this._updateUI();
-        this._setStatus('Select a piece from the palette');
+        this._setStatus('Drag pieces onto the board');
 
         this._startTimer(resetTimer);
     }
@@ -94,35 +147,71 @@ class Game {
     // Select a piece
     selectPiece(pieceName, orientation = 0) {
         if (this.placedPieces.has(pieceName)) {
-            return;  // Can't select placed piece
+            return;  // Can't select placed piece from palette if already placed
         }
 
         this.selectedPiece = pieceName;
         this.currentOrientation = orientation;
+
+        // Spawn the piece visually at mouse position (if known) or center
+        const x = this.lastMousePos ? this.lastMousePos.x : 200;
+        const y = this.lastMousePos ? this.lastMousePos.y : 200;
+
+        // Render it
+        this.currentOrientation = orientation;
+        const piece = this.getCurrentPiece();
+        const group = this.board.renderPiece(piece, x, y, orientation);
+
+        // If we just clicked palette, start dragging immediately?
+        // User wants "snap when put on right position", implying drag behavior.
+        // For palette clicks, we usually just "select" then need to click board to place (old way).
+        // Best DnD UX: Click palette -> spawns attached to mouse.
+
+        // We set dragging true, so `_onMouseMove` will move it
+        this.isDragging = true;
+        this.draggedPieceName = pieceName;
+        this.dragOffset = { x: 0, y: 0 }; // Centered on mouse initially? Or Anchor?
+        // Let's assume anchor is fine.
+
         this._updateUI();
-        this._setStatus(`Selected ${pieceName} - Click a cell to place, R to rotate`);
+        this._setStatus(`Moving ${pieceName} - R to rotate`);
     }
 
     // Deselect current piece
     deselect() {
+        // Legacy: "If we deselect, we remove the visual element if it wasn't placed"
+        // NEW: Never remove visuals. Pieces are permanent.
+        // if (this.selectedPiece && !this.placedPieces.has(this.selectedPiece)) {
+        //     this.board.removePieceElement(this.selectedPiece);
+        // }
+
         this.selectedPiece = null;
-        this.board.clearGhost();
+        this.isDragging = false;
+        this.draggedPieceName = null;
         this._updateUI();
         this._setStatus('Select a piece from the palette');
     }
 
-    // Rotate selected piece
+    // Rotate selected piece (cycles within current side: 0-5 or 6-11)
     rotate(direction = 1) {
         if (!this.selectedPiece) return;
 
-        const orientations = SG_GAME.PIECE_ORIENTATIONS[this.selectedPiece];
-        const len = orientations.length;
-        this.currentOrientation = (this.currentOrientation + direction + len) % len;
-        this._setStatus(`Rotated ${this.selectedPiece} (${this.currentOrientation + 1}/${len})`);
+        // Use ordered orientations (0-5 = normal, 6-11 = flipped)
+        const isFlipped = this.currentOrientation >= 6;
+        const baseIndex = isFlipped ? 6 : 0;
+        const rotationWithinSide = this.currentOrientation % 6;
+
+        // Cycle within the 6 rotations of current side
+        const newRotation = (rotationWithinSide + direction + 6) % 6;
+        this.currentOrientation = baseIndex + newRotation;
+
+        this._setStatus(`Rotated ${this.selectedPiece} (rot ${newRotation}${isFlipped ? ' flipped' : ''})`);
+
+        // Re-render
         this._updateFloatingPreview();
     }
 
-    // Flip selected piece (cycle through orientations that are flipped)
+    // Flip selected piece (toggles between 0-5 and 6-11)
     flip() {
         if (!this.selectedPiece) return;
 
@@ -132,182 +221,271 @@ class Game {
             return;
         }
 
-        // Skip to next orientation (simple approach)
-        this.rotate();
+        // Toggle between normal (0-5) and flipped (6-11), keeping same rotation
+        const rotationWithinSide = this.currentOrientation % 6;
+        if (this.currentOrientation < 6) {
+            this.currentOrientation = 6 + rotationWithinSide;  // Flip to 6-11
+        } else {
+            this.currentOrientation = rotationWithinSide;      // Flip back to 0-5
+        }
+
+        const isFlipped = this.currentOrientation >= 6;
+        this._setStatus(`${this.selectedPiece} ${isFlipped ? 'flipped' : 'unflipped'}`);
+
+        // Re-render
+        this._updateFloatingPreview();
     }
 
-    // Get current piece in selected orientation
+    // Get current piece in selected orientation (using ordered orientations for UI)
     getCurrentPiece() {
         if (!this.selectedPiece) return null;
-        return SG_GAME.PIECE_ORIENTATIONS[this.selectedPiece][this.currentOrientation];
+        return SG_GAME.PIECE_ORIENTATIONS_ORDERED[this.selectedPiece][this.currentOrientation];
     }
 
-    // Handle cell click
-    _onCellClick(cellElement) {
-        const t0 = performance.now();
-        console.log(`[${t0.toFixed(1)}ms] _onCellClick START`);
+    // --- DnD Handlers ---
 
-        // Cancel any pending mousemove to avoid interference
-        if (this._pendingMouseMove) {
-            cancelAnimationFrame(this._pendingMouseMove);
-            this._pendingMouseMove = null;
-        }
-
-        const posKey = cellElement.getAttribute('data-pos-key');
-        const pos = SG_GAME.TrianglePos.fromKey(posKey);
-
-        // Check if cell is occupied
-        const occupant = this.board.occupied.get(posKey);
-
-        // Handle clicking on existing items
-        if (occupant !== undefined) {
-            if (occupant === null) {
-                this._setStatus('Cannot remove blockers');
-                return;
-            }
-
-            // Pick up the piece
-            const orientation = this.placedPieces.get(occupant) || 0;
-            this.board.removePiece(occupant);
-            this.placedPieces.delete(occupant);
-            this.selectPiece(occupant, orientation);
-            this._setStatus(`Picked up ${occupant}`);
-            this._updateUI();
-            return;
-        }
-
-        const piece = this.getCurrentPiece();
-        if (!piece) {
-            this._setStatus('Select a piece first');
-            return;
-        }
-
-        const { valid, positions } = this.board.canPlace(piece, pos);
-        console.log(`[${performance.now().toFixed(1)}ms] canPlace done, valid=${valid}`);
-
-        if (!valid) {
-            this._setStatus('Cannot place here - try another cell');
-            return;
-        }
-
-        // Place the piece
-        console.log(`[${performance.now().toFixed(1)}ms] placePiece START`);
-        this.board.placePiece(piece.name, positions);
-        console.log(`[${performance.now().toFixed(1)}ms] placePiece END`);
-
-        this.placedPieces.set(piece.name, this.currentOrientation);
-
-        console.log(`[${performance.now().toFixed(1)}ms] clearGhost START`);
-        this.board.clearGhost();
-        console.log(`[${performance.now().toFixed(1)}ms] clearGhost END`);
-
-        // Check win
-        if (this.board.isSolved()) {
-            this._onWin();
-        } else {
-            console.log(`[${performance.now().toFixed(1)}ms] deselect START`);
-            this.deselect();
-            console.log(`[${performance.now().toFixed(1)}ms] deselect END`);
-        }
-
-        console.log(`[${performance.now().toFixed(1)}ms] updateUI START`);
-        this._updateUI();
-        console.log(`[${performance.now().toFixed(1)}ms] _onCellClick END, total=${(performance.now() - t0).toFixed(1)}ms`);
-
-        // Measure when browser actually paints
-        requestAnimationFrame(() => {
-            console.log(`[${performance.now().toFixed(1)}ms] RAF1 (next frame)`);
-            requestAnimationFrame(() => {
-                console.log(`[${performance.now().toFixed(1)}ms] RAF2 (paint complete)`);
-            });
-        });
-    }
-
-    // Handle right-click (remove piece)
-    _onCellRightClick(cellElement) {
-        const posKey = cellElement.getAttribute('data-pos-key');
-        const occupant = this.board.occupied.get(posKey);
-
-        // Can't remove blockers
-        if (occupant === null) {
-            this._setStatus('Cannot remove blockers');
-            return;
-        }
-
-        if (occupant) {
-            this.board.removePiece(occupant);
-            this.placedPieces.delete(occupant);
-            this._updateUI();
-            this._setStatus(`Removed ${occupant}`);
-        }
-    }
-
-    // Handle mouse movement - show floating piece preview (throttled with RAF)
-    _onMouseMove(e) {
-        // Throttle with requestAnimationFrame
-        if (this._pendingMouseMove) return;
-
-        this._pendingMouseMove = requestAnimationFrame(() => {
-            this._pendingMouseMove = null;
-            this._processMouseMove(e);
-        });
-    }
-
-    // Actual mouse move processing
-    _processMouseMove(e) {
-        const piece = this.getCurrentPiece();
-
-        // Get mouse position in SVG coordinates
+    _getMouseSVGPos(e) {
         const svg = this.board.svg;
         const pt = svg.createSVGPoint();
         pt.x = e.clientX;
         pt.y = e.clientY;
-        const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+        return pt.matrixTransform(svg.getScreenCTM().inverse());
+    }
 
-        // Check if we're over a cell to determine validity
-        const cell = e.target.closest('.board-cell');
-        let isValid = null;
-        let cellPos = null;
+    _onMouseDown(e) {
+        // Check if we clicked a piece group
+        const group = e.target.closest('.piece-group');
+        if (!group) {
+            // If clicking empty space/cell, maybe deselect?
+            // But DnD philosophy usually implies persistent selection.
+            // We can keep current logic: clicking background deselects.
+            if (e.target.closest('.board-cell')) {
+                // Check if it's a blocker, otherwise deselect
+                const posKey = e.target.closest('.board-cell').dataset.posKey;
+                if (this.board.occupied.get(posKey) === null) {
+                    this._setStatus('Cannot move blockers');
+                } else {
+                    this.deselect();
+                }
+            }
+            return;
+        }
 
-        if (cell) {
-            const posKey = cell.getAttribute('data-pos-key');
-            cellPos = SG_GAME.TrianglePos.fromKey(posKey);
-            if (piece) {
-                const { valid } = this.board.canPlace(piece, cellPos);
-                isValid = valid;
+        e.preventDefault(); // Prevent text selection
+
+        const pieceName = group.dataset.piece;
+        this.isDragging = true;
+        this.draggedPieceName = pieceName;
+
+        // Select it
+        if (this.selectedPiece !== pieceName) {
+            // Get current orientation
+            const rotation = parseInt(group.dataset.rotation || 0);
+            this.placedPieces.delete(pieceName); // Temporarily remove from logic to allow movement
+            this.board.removePiece(pieceName, true); // Keep visual!
+
+            this.selectedPiece = pieceName;
+            this.currentOrientation = rotation;
+            this._updateUI();
+            this._setStatus(`Moving ${pieceName} - R to rotate`);
+        } else {
+            // Already selected
+            const rotation = this.currentOrientation;
+            this.placedPieces.delete(pieceName);
+            this.board.removePiece(pieceName, true); // Keep visual!
+
+            this.selectedPiece = pieceName;
+            this.currentOrientation = rotation;
+            this._updateUI();
+        }
+
+        // Calculate drag offset
+        const mousePos = this._getMouseSVGPos(e);
+
+        // Get piece current transform
+        const transform = group.getAttribute('transform');
+        let currentX = 0, currentY = 0;
+        if (transform) {
+            const match = transform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+            if (match) {
+                currentX = parseFloat(match[1]);
+                currentY = parseFloat(match[2]);
             }
         }
 
-        // Save position for use by rotate/flip
-        this.lastMousePos = { x: svgP.x, y: svgP.y, cellPos, isValid };
+        this.dragOffset = {
+            x: currentX - mousePos.x,
+            y: currentY - mousePos.y
+        };
 
-        if (!piece) {
-            this.board.clearGhost();
-            return;
-        }
-
-        // Show floating preview at cursor
-        this.board.showFloatingPreview(piece, svgP.x, svgP.y, isValid);
+        // Move to top visual layer
+        this.board.pieceGroup.appendChild(group);
+        group.style.cursor = 'grabbing';
     }
 
-    // Update floating preview (called after rotation)
-    _updateFloatingPreview() {
-        if (!this.lastMousePos) return;
+    _onMouseUp(e) {
+        if (!this.isDragging) return;
 
-        const piece = this.getCurrentPiece();
-        if (!piece) {
-            this.board.clearGhost();
+        const pieceName = this.draggedPieceName;
+        const group = this.board.pieceElements.get(pieceName);
+
+        // Safety check - if drag was cancelled or group lost
+        if (!group) {
+            this.endDrag();
             return;
         }
 
-        // Recalculate validity with new orientation
-        let isValid = null;
-        if (this.lastMousePos.cellPos) {
-            const { valid } = this.board.canPlace(piece, this.lastMousePos.cellPos);
-            isValid = valid;
+        // Calculate drop position (centroid of piece anchor)
+        // We know the anchor is at (0,0) relative to group.
+        // So group position = anchor position.
+
+        const transform = group.getAttribute('transform');
+        let x = 0, y = 0;
+        if (transform) {
+            const match = transform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+            if (match) {
+                x = parseFloat(match[1]);
+                y = parseFloat(match[2]);
+            }
         }
 
-        this.board.showFloatingPreview(piece, this.lastMousePos.x, this.lastMousePos.y, isValid);
+        // x, y is now the CENTROID position (since we use centroid-based rendering)
+        const piece = this.getCurrentPiece();
+
+        // Find nearest cell for the ANCHOR (not centroid)
+        const cellPos = this.board.getNearestAnchorCell(piece, x, y);
+
+        if (cellPos) {
+            // Attempt placement (uses anchor cell for validation)
+            const { valid, positions } = this.board.canPlace(piece, cellPos);
+
+            if (valid) {
+                // Success!
+                this.board.placePiece(piece.name, positions);
+                this.placedPieces.set(piece.name, this.currentOrientation);
+
+                // Snap visual to correct position (centroid-based)
+                const snapPos = this.board.getSnapPositionForPiece(piece, cellPos);
+                if (snapPos) {
+                    this.board.updatePiecePosition(piece.name, snapPos[0], snapPos[1]);
+                }
+
+                this._setStatus(`Placed ${piece.name}`);
+
+                // Check if puzzle is solved
+                if (this.board.isSolved()) {
+                    this._onWin();
+                }
+            } else {
+                // Invalid placement on board - just drop it where the mouse is (or where it was dragged)
+                // If it was valid, we'd snap. If invalid, we leave it 'loose' on the board/side.
+
+                // Remove from LOGIC grid if it was there
+                if (this.placedPieces.has(pieceName)) {
+                    this.placedPieces.delete(pieceName);
+                    this.board.removePiece(pieceName, true); // remove from logic, keep visual
+                }
+
+                this._setStatus('Placed outside grid');
+                this.deselect();
+                // Do NOT call removePieceElement(pieceName)
+            }
+        } else {
+            // Dropped outside grid (sidelines)
+            // Just update visual position (already done by drag) and ensure not in logic grid
+            if (this.placedPieces.has(pieceName)) {
+                this.placedPieces.delete(pieceName);
+                this.board.removePiece(pieceName, true);
+            }
+
+            // CRITICAL fix: ensure we don't accidentally remove visualization
+            this.selectedPiece = null; // Just deselect, don't remove
+            this.isDragging = false;
+            this.draggedPieceName = null;
+            this._updateUI();
+            this._setStatus('Placed on sideline');
+        }
+
+        this.endDrag();
+    }
+
+    _cancelDrag() {
+        if (!this.isDragging) return;
+        // If cancelled (e.g. mouse up outside window/SVG), just leave it where it is
+        const pieceName = this.draggedPieceName;
+        this.deselect();
+        // this.board.removePieceElement(pieceName); // CRITICAL FIX: Do NOT remove visuals!
+        this.endDrag();
+    }
+
+    endDrag() {
+        this.isDragging = false;
+        this.draggedPieceName = null;
+        // Reset cursors
+        if (this.selectedPiece) {
+            const g = this.board.pieceElements.get(this.selectedPiece);
+            if (g) g.style.cursor = 'grab';
+        }
+    }
+
+    // Handle mouse movement
+    _onMouseMove(e) {
+        const mousePos = this._getMouseSVGPos(e);
+        this.lastMousePos = mousePos; // for rotation
+
+        if (this.isDragging && this.draggedPieceName) {
+            const x = mousePos.x + this.dragOffset.x;
+            const y = mousePos.y + this.dragOffset.y;
+
+            this.board.updatePiecePosition(this.draggedPieceName, x, y);
+        }
+    }
+
+    // Actual mouse move processing (Legacy/Unused for Drag logic, but kept empty/cleaned)
+    _processMouseMove(e) {
+        // No longer needed for ghost preview as we drag real pieces
+        // We might want to highlight the cell under the cursor though?
+        // skipping for now to keep it clean DnD.
+    }
+
+    // Update floating preview (Legacy - replaced by real piece rotation)
+    _updateFloatingPreview() {
+        // When we rotate, we need to re-render the SVG group of the dragged/selected piece
+        if (!this.selectedPiece) return;
+
+        const piece = this.getCurrentPiece(); // Gets rotated version
+
+        // We need to keep the screen position of the piece
+        let x = 0, y = 0;
+
+        // If piece exists on board (visual), get its position
+        let existingGroup = this.board.pieceElements.get(this.selectedPiece);
+
+        /* 
+         * CRITICAL: If we are selecting a new piece from palette, it might not have a group yet.
+         * But 'rotate' assumes we have something to rotate.
+         * If we just clicked palette, we haven't created the visual group on board yet until we drag/place? 
+         * Wait, in Lichess style, picking from palette usually attaches it to mouse immediately.
+         */
+
+        // If we are dragging, we definitely have a group.
+        if (existingGroup) {
+            const transform = existingGroup.getAttribute('transform');
+            if (transform) {
+                const match = transform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+                if (match) {
+                    x = parseFloat(match[1]);
+                    y = parseFloat(match[2]);
+                }
+            }
+
+            // Re-render with new rotation
+            const group = this.board.renderPiece(piece, x, y, this.currentOrientation);
+
+            if (this.isDragging) {
+                group.style.cursor = 'grabbing';
+            }
+        }
     }
 
     // Update UI (palette, buttons)
@@ -327,8 +505,41 @@ class Game {
         }
     }
 
+    // DEBUG: Draw a visible marker at a position
+    _drawDebugMarker(x, y, label = '') {
+        const svg = this.board.svg;
+
+        // Create a red circle
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', x);
+        circle.setAttribute('cy', y);
+        circle.setAttribute('r', 8);
+        circle.setAttribute('fill', 'red');
+        circle.setAttribute('stroke', 'white');
+        circle.setAttribute('stroke-width', 2);
+        circle.setAttribute('class', 'debug-marker');
+
+        // Create a label
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', x + 12);
+        text.setAttribute('y', y + 4);
+        text.setAttribute('fill', 'red');
+        text.setAttribute('font-size', '14');
+        text.setAttribute('font-weight', 'bold');
+        text.setAttribute('class', 'debug-marker');
+        text.textContent = label;
+
+        svg.appendChild(circle);
+        svg.appendChild(text);
+    }
+
+    // Clear debug markers
+    _clearDebugMarkers() {
+        this.board.svg.querySelectorAll('.debug-marker').forEach(el => el.remove());
+    }
+
     _setStatus(text) {
-        const statusEl = document.getElementById('status-text');
+        const statusEl = document.getElementById('header-status');
         if (statusEl) {
             statusEl.textContent = text;
         }
@@ -377,12 +588,52 @@ class Game {
     }
 
     // Apply solution from solver
-    applySolution(solution) {
+    applySolution(solution, orientations = {}, anchors = {}) {
         // solution: { pieceName: [cellIds] }
-        for (const [pieceName, cellIds] of Object.entries(solution)) {
-            const positions = cellIds.map(id => this.board.getCellById(id));
+        // orientations: { pieceName: orientationIndex }
+        // anchors: { pieceName: anchorCellId }
+
+        for (const pieceName of Object.keys(solution)) {
+            // 1. Get positions for logical placement
+            const positions = solution[pieceName].map(id => this.board.getCellById(id));
+
+            // 2. Place on logical board (updates occupied map)
             this.board.placePiece(pieceName, positions);
-            this.placedPieces.set(pieceName, 0); // Default orientation
+
+            // 3. Update game state to track orientation
+            const orientationIdx = orientations[pieceName] || 0;
+            this.placedPieces.set(pieceName, orientationIdx);
+
+            // 4. Visual Rendering
+            // We need to render the piece in the correct rotation!
+            // Get the specific rotated piece object (precomputed in pieces.js)
+            const orientedPiece = SG_GAME.PIECE_ORIENTATIONS[pieceName][orientationIdx];
+
+            if (!orientedPiece) {
+                console.error(`Missing orientation ${orientationIdx} for ${pieceName}`);
+                continue;
+            }
+
+            // Calculate visual position using anchor cell (centroid-based snapping)
+            // The anchor cell is where the piece's triangles[0] lands
+            let anchorCellPos = positions[0]; // Fallback
+            if (anchors[pieceName]) {
+                anchorCellPos = this.board.getCellById(anchors[pieceName]);
+            }
+
+            // Get the correct snap position for centroid-based rendering
+            const snapPos = this.board.getSnapPositionForPiece(orientedPiece, anchorCellPos);
+
+            // DEBUG: Log the computed position
+            console.log(`[applySolution] Piece: ${pieceName}`);
+            console.log(`  - orientationIdx: ${orientationIdx}`);
+            console.log(`  - positions (cell IDs):`, solution[pieceName]);
+            console.log(`  - anchorCellPos:`, anchorCellPos ? anchorCellPos.key() : 'null');
+            console.log(`  - snapPos (px):`, snapPos);
+
+            if (snapPos) {
+                this.board.renderPiece(orientedPiece, snapPos[0], snapPos[1], orientationIdx);
+            }
         }
         this._updateUI();
 

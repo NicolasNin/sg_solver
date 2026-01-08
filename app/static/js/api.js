@@ -22,6 +22,20 @@ async function solvePuzzle(boardState) {
     return response.json();
 }
 
+// DEBUG: Test solve with fixed piece placement
+async function testSolve() {
+    const response = await fetch(`${API_BASE}/test-solve`, {
+        method: 'GET',
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Test solver failed');
+    }
+
+    return response.json();
+}
+
 // Detect board from uploaded image
 async function detectBoard(imageFile) {
     const formData = new FormData();
@@ -44,4 +58,5 @@ async function detectBoard(imageFile) {
 window.StarGenius.api = {
     solvePuzzle,
     detectBoard,
+    testSolve,
 };

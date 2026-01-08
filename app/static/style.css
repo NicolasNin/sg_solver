@@ -130,7 +130,15 @@ main {
     grid-template-columns: 200px 1fr 220px;
     gap: 20px;
     padding: 20px;
-    height: calc(100vh - 65px);
+    height: calc(100vh - 100px);
+    /* Restore fixed height to force internal scrolling */
+    overflow: hidden;
+    /* Prevent body scroll */
+}
+
+#board-container {
+    overflow: auto;
+    /* Allow board to scroll if needed within the container */
 }
 
 /* Palette */
@@ -199,21 +207,25 @@ main {
 }
 
 #board-svg {
-    max-width: 100%;
-    max-height: calc(100vh - 180px);
+    max-height: 100%;
+    /* Fit height first to avoid scroll */
+    width: auto;
+    /* Width adjusts to aspect ratio */
+    display: block;
+    /* Remove inline spacing */
+    margin: 0 auto;
+    /* Center horizontally */
+    overflow: visible;
+    /* Allow pieces to overhang */
     filter: drop-shadow(0 4px 20px rgba(0, 0, 0, 0.5));
 }
 
-#status-bar {
-    margin-top: 16px;
-    padding: 12px 24px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-}
-
-#status-text {
+#header-status {
+    flex-grow: 1;
+    text-align: center;
     color: var(--text-secondary);
+    font-size: 1.1rem;
+    font-weight: 500;
 }
 
 /* Controls */

@@ -36,6 +36,8 @@ class BoardState(BaseModel):
 class SolveResponse(BaseModel):
     success: bool
     solution: dict[str, list[int]] | None = None  # Piece name -> cell IDs
+    orientations: dict[str, int] | None = None   # Piece name -> orientation index
+    anchors: dict[str, int] | None = None        # Piece name -> anchor cell ID
     error: str | None = None
 
 
@@ -51,6 +53,21 @@ class DetectResponse(BaseModel):
 async def index():
     """Serve the main page."""
     return FileResponse(static_path / "index.html")
+
+
+@app.get("/api/test-solve", response_model=SolveResponse)
+async def test_solve():
+    """
+    Debug endpoint: returns a fixed piece at a fixed location.
+    T5 rotated (orientation 1) at cells 15,14,24,23,32.
+    """
+    print("test_solve - T5 orientation 1 at cells 15,14,24,23,32")
+    return SolveResponse(
+        success=True,
+        solution={"T5": [15, 14, 24, 23, 32]},  # T5 rotated
+        orientations={"T5": 1},                  # Orientation 1
+        anchors={"T5": 32}                       # Anchor is cell 15 (first in list)
+    )
 
 
 @app.post("/api/solve", response_model=SolveResponse)
@@ -73,8 +90,29 @@ async def solve_board(state: BoardState):
         if result is None:
             return SolveResponse(success=False, error="No solution found")
         
-        # Convert result to cell IDs
+        # Convert result to cell IDs, orientations, and anchors
         solution = {}
+        orientations = {}
+        anchors = {}
+        
+        # Determine orientation indices and anchors
+        # We need to match the placed piece shape against known orientations
+
+        for piece_name, (placed_piece, anchor_pos) in result.placements.items():
+            # Get anchor cell ID
+            if anchor_pos in result.cells:
+                anchors[piece_name] = result.cells[anchor_pos].cell_id
+            
+            known_orients = PIECE_ORIENTATIONS[piece_name]
+            placed_key = placed_piece._canonical_key()
+            
+            found_idx = 0
+            for i, p in enumerate(known_orients):
+                if p._canonical_key() == placed_key:
+                    found_idx = i
+                    break
+            orientations[piece_name] = found_idx
+
         for pos, piece_name in result.occupied.items():
             if piece_name is None:  # Skip blockers
                 continue
@@ -82,8 +120,8 @@ async def solve_board(state: BoardState):
             if piece_name not in solution:
                 solution[piece_name] = []
             solution[piece_name].append(cell_id)
-        
-        return SolveResponse(success=True, solution=solution)
+
+        return SolveResponse(success=True, solution=solution, orientations=orientations, anchors=anchors)
         
     except Exception as e:
         return SolveResponse(success=False, error=str(e))

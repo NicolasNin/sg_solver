@@ -89,6 +89,18 @@ class TrianglePos {
     flipX() {
         return new TrianglePos(-this.x, this.y, this.pointsUp);
     }
+
+    // Get centroid of this triangle in normal (unskewed) coords
+    getCentroid() {
+        const verts = this.toVertices();
+        // Convert skewed to normal coords: nx = vx + vy*0.5, ny = vy
+        let sumNx = 0, sumNy = 0;
+        for (const [vx, vy] of verts) {
+            sumNx += vx + vy * 0.5;
+            sumNy += vy;
+        }
+        return [sumNx / 3, sumNy / 3];
+    }
 }
 
 // Piece class
@@ -135,7 +147,31 @@ class Piece {
         return new Piece(this.name, flipped, this.canFlip).normalize();
     }
 
-    // Get all unique orientations
+    // Get centroid of entire piece in normal (unskewed) coords
+    // This is the average of all triangle centroids
+    getCentroid() {
+        let sumNx = 0, sumNy = 0;
+        for (const tri of this.triangles) {
+            const [nx, ny] = tri.getCentroid();
+            sumNx += nx;
+            sumNy += ny;
+        }
+        const n = this.triangles.length;
+        return [sumNx / n, sumNy / n];
+    }
+
+    // Get offset from anchor (triangles[0]) centroid to piece centroid
+    // This is used to render pieces centered on their centroid instead of anchor
+    getCentroidOffset() {
+        const pieceCentroid = this.getCentroid();
+        const anchorCentroid = this.triangles[0].getCentroid();
+        return [
+            pieceCentroid[0] - anchorCentroid[0],
+            pieceCentroid[1] - anchorCentroid[1]
+        ];
+    }
+
+    // Get all unique orientations (for solver - deduplicates)
     allOrientations(forceFlip = false) {
         const includeFlips = this.canFlip || forceFlip;
         const seen = new Set();
@@ -159,6 +195,29 @@ class Piece {
             }
 
             p = p.rotate60();
+        }
+
+        return orientations;
+    }
+
+    // Get all 12 orientations in fixed order (for UI - predictable indexing)
+    // Indices 0-5: 6 rotations of base piece (rot0, rot1, ..., rot5)
+    // Indices 6-11: 6 rotations of flipped piece (flip+rot0, flip+rot1, ..., flip+rot5)
+    allOrientationsOrdered() {
+        const orientations = [];
+
+        // First 6: rotations of base piece
+        let p = this.normalize();
+        for (let i = 0; i < 6; i++) {
+            orientations.push(p);
+            p = p.rotate60();
+        }
+
+        // Next 6: rotations of flipped piece
+        let flipped = this.normalize().flip();
+        for (let i = 0; i < 6; i++) {
+            orientations.push(flipped);
+            flipped = flipped.rotate60();
         }
 
         return orientations;
@@ -187,23 +246,28 @@ const PIECE_DEFINITIONS = {
 };
 
 // Precompute all orientations for each piece
+// PIECE_ORIENTATIONS: deduplicated (for solver)
+// PIECE_ORIENTATIONS_ORDERED: fixed 12 positions (for UI)
 const PIECE_ORIENTATIONS = {};
+const PIECE_ORIENTATIONS_ORDERED = {};
 for (const [name, piece] of Object.entries(PIECE_DEFINITIONS)) {
     PIECE_ORIENTATIONS[name] = piece.allOrientations();
+    PIECE_ORIENTATIONS_ORDERED[name] = piece.allOrientationsOrdered();
 }
 
 // Ordered list for display (largest to smallest for palette)
 const ALL_PIECES = ['T5', '4U', '4D', 'EL', 'T4', 'L4', 'TF', 'T3', '3B', 'T2', 'T1'];
 
 // Dice definitions (from dices.py)
+// 3x 8-faced dice, 4x 6-faced dice (2 incomplete - only 3 faces known)
 const ALL_DICE = [
-    [25, 26, 36, 37, 38, 40, 45, 47],  // 8-faced
-    [2, 4, 7, 8, 9, 17, 11, 16],       // 8-faced
-    [12, 13, 23, 24, 32, 33, 41, 42],  // 8-faced
-    [1, 5, 15, 34, 44, 48],            // 6-faced
-    [19, 20, 21, 28, 29, 30],          // 6-faced
-    [18, 22, 39, 3, 6, 14],            // 6-faced (completed)
-    [10, 27, 31, 35, 43, 46],          // 6-faced (completed)
+    [25, 26, 36, 37, 38, 40, 45, 47],  // 8-faced dice 1
+    [2, 4, 7, 8, 9, 17, 11, 16],       // 8-faced dice 2
+    [12, 13, 23, 24, 32, 33, 41, 42],  // 8-faced dice 3
+    [1, 5, 15, 34, 44, 48],            // 6-faced dice 1
+    [19, 20, 21, 28, 29, 30],          // 6-faced dice 2
+    [18, 22, 39],                       // 6-faced dice 3 (incomplete)
+    [10, 27, 31],                       // 6-faced dice 4 (incomplete)
 ];
 
 // Roll all 7 dice
@@ -220,6 +284,7 @@ Object.assign(window.StarGenius, {
     BLOCKER_COLOR,
     PIECE_DEFINITIONS,
     PIECE_ORIENTATIONS,
+    PIECE_ORIENTATIONS_ORDERED,
     ALL_PIECES,
     rollDice,
 });

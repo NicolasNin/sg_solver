@@ -7,6 +7,51 @@
 let board;
 let game;
 
+// === URL-based Board Sharing ===
+// Encode 7 blockers (values 1-48) to a hex string using base-48
+function encodeBlockers(blockers) {
+    // Convert from 1-indexed (cell IDs) to 0-indexed for encoding
+    let value = 0n;
+    for (let i = blockers.length - 1; i >= 0; i--) {
+        value = value * 48n + BigInt(blockers[i] - 1);
+    }
+    return value.toString(16);
+}
+
+// Decode hex string back to 7 blockers
+function decodeBlockers(hex) {
+    let value = BigInt('0x' + hex);
+    const blockers = [];
+    for (let i = 0; i < 7; i++) {
+        blockers.push(Number(value % 48n) + 1);  // Convert back to 1-indexed
+        value = value / 48n;
+    }
+    return blockers;
+}
+
+// Update URL with current board config
+function updateURLWithBlockers(blockers) {
+    const code = encodeBlockers(blockers);
+    const url = new URL(window.location.href);
+    url.searchParams.set('board', code);
+    window.history.replaceState({}, '', url);
+}
+
+// Check URL for board parameter on load
+function getBlockersFromURL() {
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get('board');
+    if (code) {
+        try {
+            return decodeBlockers(code);
+        } catch (e) {
+            console.error('Invalid board code:', e);
+            return null;
+        }
+    }
+    return null;
+}
+
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     // Access StarGenius namespace after all scripts loaded
@@ -14,6 +59,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initializeGame(SG);
     setupEventListeners(SG);
+
+    // Check for board config in URL
+    const urlBlockers = getBlockersFromURL();
+    if (urlBlockers && urlBlockers.length === 7) {
+        console.log('Starting game from URL:', urlBlockers);
+        startNewGame(urlBlockers);
+    }
 });
 
 function initializeGame(SG) {
@@ -119,7 +171,8 @@ function setupEventListeners(SG) {
 
     // Game controls
     document.getElementById('btn-new-game').addEventListener('click', () => {
-        showModal();
+        const blockers = SG.rollDice();
+        startNewGame(blockers);
     });
 
     document.getElementById('btn-rotate').addEventListener('click', () => {
@@ -137,12 +190,21 @@ function setupEventListeners(SG) {
     document.getElementById('btn-solve').addEventListener('click', async () => {
         await solveCurrentPuzzle();
     });
+
+    // DEBUG: Listen for test-solve event from game.js
+    document.addEventListener('star-genius-test-solve', async () => {
+        console.log('[main.js] Received test-solve event');
+        await testSolveDebug();
+    });
 }
 
 function startNewGame(blockers) {
     hideModal();
     showGame();
     game.startGame(blockers);
+
+    // Update URL for sharing
+    updateURLWithBlockers(blockers);
 }
 
 async function loadFromPhoto(file) {
@@ -173,13 +235,46 @@ async function solveCurrentPuzzle() {
         hideLoading();
 
         if (result.solution) {
-            game.applySolution(result.solution);
+            game.applySolution(result.solution, result.orientations, result.anchors);
         } else {
             alert('No solution found');
         }
     } catch (error) {
         hideLoading();
         alert('Solver error: ' + error.message);
+    }
+}
+
+// DEBUG: Test with fixed placement to debug rendering
+async function testSolveDebug() {
+    console.log('[DEBUG] testSolveDebug() called');
+    console.log('[DEBUG] game object:', game);
+    console.log('[DEBUG] api object:', window.StarGenius?.api);
+
+    if (!game) {
+        console.error('[DEBUG] No game object - start a game first!');
+        return;
+    }
+
+    try {
+        // Clear previous debug markers
+        if (game._clearDebugMarkers) {
+            game._clearDebugMarkers();
+        }
+
+        console.log('[DEBUG] About to call testSolve API...');
+        const result = await window.StarGenius.api.testSolve();
+        console.log('[DEBUG] Test result:', result);
+
+        if (result.solution) {
+            console.log('[DEBUG] Calling applySolution...');
+            game.applySolution(result.solution, result.orientations, result.anchors);
+            console.log('[DEBUG] applySolution done');
+        } else {
+            console.error('[DEBUG] No solution in test result');
+        }
+    } catch (error) {
+        console.error('[DEBUG] Test solve error:', error);
     }
 }
 
