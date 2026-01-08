@@ -14,11 +14,26 @@ import uvicorn
 
 from sg_solver import Board, solve_puzzle, ALL_PIECES, PIECE_ORIENTATIONS
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(title="Star Genius")
 
-# Serve static files
+# Enable CORS for the GitHub Pages domain
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:8000",
+        "https://github.ninin.me",
+        "https://nicolasnin.github.io"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Serve static files from root
 static_path = Path(__file__).parent / "static"
-app.mount("/static", StaticFiles(directory=static_path), name="static")
+app.mount("/", StaticFiles(directory=static_path, html=True), name="static")
 
 
 # Request/Response models
