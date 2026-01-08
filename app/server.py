@@ -5,18 +5,18 @@ Serves the web app and provides API endpoints for solving and board detection.
 """
 
 from pathlib import Path
-
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, APIRouter
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
-
-from fastapi.middleware.cors import CORSMiddleware
 import os
+
 from sg_solver import Board, solve_puzzle, ALL_PIECES, PIECE_ORIENTATIONS
 
 app = FastAPI(title="Star Genius")
+api_router = APIRouter(prefix="/api")
 
 # Enable CORS
 # Allow all origins for simplicity and robust public access
@@ -29,10 +29,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Serve static files
-static_path = Path(__file__).parent / "static"
-app.mount("/", StaticFiles(directory=static_path, html=True), name="static")
 
 
 # Request/Response models
@@ -63,7 +59,7 @@ async def index():
     return FileResponse(static_path / "index.html")
 
 
-@app.get("/api/test-solve", response_model=SolveResponse)
+@api_router.get("/test-solve", response_model=SolveResponse)
 async def test_solve():
     """
     Debug endpoint: returns a fixed piece at a fixed location.
@@ -78,7 +74,7 @@ async def test_solve():
     )
 
 
-@app.post("/api/solve", response_model=SolveResponse)
+@api_router.post("/solve", response_model=SolveResponse)
 async def solve_board(state: BoardState):
     """
     Solve the puzzle given blockers and optionally pre-placed pieces.
@@ -135,7 +131,7 @@ async def solve_board(state: BoardState):
         return SolveResponse(success=False, error=str(e))
 
 
-@app.post("/api/detect-board", response_model=DetectResponse)
+@api_router.post("/detect-board", response_model=DetectResponse)
 async def detect_board(image: UploadFile = File(...)):
     """
     Detect board state from an uploaded image.
@@ -188,6 +184,13 @@ async def detect_board(image: UploadFile = File(...)):
     except Exception as e:
         return DetectResponse(success=False, error=str(e))
 
+
+# Register the API router
+app.include_router(api_router)
+
+# Serve static files - MUST be last
+static_path = Path(__file__).parent / "static"
+app.mount("/", StaticFiles(directory=static_path, html=True), name="static")
 
 if __name__ == "__main__":
     print("Starting Star Genius server at http://localhost:8000")
