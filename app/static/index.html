@@ -28,9 +28,54 @@
             <p>Choose how to start:</p>
             <div class="modal-buttons">
                 <button id="btn-random" class="btn btn-primary">🎲 Random Game</button>
+                <button id="btn-choose-dice" class="btn btn-secondary">🎯 Choose Dice</button>
                 <button id="btn-photo" class="btn btn-secondary">📷 Load from Photo</button>
             </div>
             <input type="file" id="photo-input" accept="image/*" style="display: none;">
+        </div>
+    </div>
+
+    <!-- Dice Selection Modal -->
+    <div id="dice-modal" class="modal hidden">
+        <div class="modal-content dice-modal-content">
+            <h2>🎯 Choose Your Blockers</h2>
+            <p class="dice-instructions">Click one value per die to select blockers</p>
+            <table id="dice-table">
+                <tbody>
+                    <tr data-die="0">
+                        <td class="die-label">Die 1</td>
+                        <td class="die-options"></td>
+                    </tr>
+                    <tr data-die="1">
+                        <td class="die-label">Die 2</td>
+                        <td class="die-options"></td>
+                    </tr>
+                    <tr data-die="2">
+                        <td class="die-label">Die 3</td>
+                        <td class="die-options"></td>
+                    </tr>
+                    <tr data-die="3">
+                        <td class="die-label">Die 4</td>
+                        <td class="die-options"></td>
+                    </tr>
+                    <tr data-die="4">
+                        <td class="die-label">Die 5</td>
+                        <td class="die-options"></td>
+                    </tr>
+                    <tr data-die="5">
+                        <td class="die-label">Die 6</td>
+                        <td class="die-options"></td>
+                    </tr>
+                    <tr data-die="6">
+                        <td class="die-label">Die 7</td>
+                        <td class="die-options"></td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="dice-modal-buttons">
+                <button id="btn-start-dice" class="btn btn-primary" disabled>Start Game</button>
+                <button id="btn-cancel-dice" class="btn btn-secondary">Cancel</button>
+            </div>
         </div>
     </div>
 
@@ -40,7 +85,6 @@
             <h1>⭐ Star Genius</h1>
             <div id="header-status">Select a piece from the palette</div>
             <div class="header-controls">
-                <button id="btn-new-game" class="btn btn-small">New Game</button>
                 <div id="timer" class="timer">00:00</div>
             </div>
         </header>
@@ -59,6 +103,11 @@
 
             <!-- Controls -->
             <aside id="controls">
+                <h2>New Game</h2>
+                <div class="control-group">
+                    <button id="btn-new-game" class="btn btn-primary">🎲 Random Game</button>
+                    <button id="btn-choose-dice-game" class="btn btn-secondary">🎯 Choose Dice</button>
+                </div>
                 <h2>Controls</h2>
                 <div class="control-group">
                     <button id="btn-rotate" class="btn">↻ Rotate (R)</button>
@@ -69,6 +118,7 @@
                 </div>
                 <div class="control-group">
                     <button id="btn-solve" class="btn btn-primary">💡 Help Me!</button>
+                    <button id="btn-solve-full" class="btn btn-secondary">🔄 Full Solve</button>
                 </div>
                 <div id="controls-info">
                     <p><strong>Keyboard:</strong></p>

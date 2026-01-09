@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from reference_data import SOLIDITY,MIN_AREA
+from board_detection.reference_data import SOLIDITY, MIN_AREA
 
 def get_cnt_bbox(cnt):
     xs = cnt[:,0,0]
@@ -68,6 +68,12 @@ def get_possibles_mask(mask_list):
             possibles.append(invert_mask)
     return possibles
 
+def get_possibles_mask_from_image_path(image_path):
+    from board_detection.sam_helpers import get_sam, compute_sam
+    sam = get_sam()
+    masks = compute_sam(image_path,sam)
+    sam_masks_seg = [x["segmentation"] for x in masks]
+    return get_possibles_mask(sam_masks_seg)
 
 def pad_mask(mask, padding=10, value=False):
     """Pad a mask with specified value (default False)"""

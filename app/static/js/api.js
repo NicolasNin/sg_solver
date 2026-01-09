@@ -6,7 +6,7 @@
 
 const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 const API_BASE = IS_LOCAL
-    ? 'https://sg.ninin.space/api'
+    ? 'http://localhost:8000/api'
     : 'https://sg.ninin.space/api'; // VPS + Caddy HTTPS
 // Solve the current board state
 async function solvePuzzle(boardState) {

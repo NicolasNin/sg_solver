@@ -1,3 +1,7 @@
+import numpy as np
+import cv2
+import math
+from board_detection.reference_data import mask_logo
 def get_white_mask(image_bgr,clean=True):
     image_hsv = cv2.cvtColor(image_bgr,cv2.COLOR_BGR2HSV)
     lower = (0, 0, 150)
@@ -124,5 +128,6 @@ def find_white_triangles(warped_no_bg,corrected_points):
         "orientation":centers_of_mass[i][1],
         "center_of_mass":centers_of_mass_pts[i],
         "best_post":best_pos[i],
+        "hull":hulls_filter[i]
         } for i in range(len(hulls_filter))]
     return result_dic

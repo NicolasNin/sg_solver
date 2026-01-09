@@ -286,5 +286,6 @@ Object.assign(window.StarGenius, {
     PIECE_ORIENTATIONS,
     PIECE_ORIENTATIONS_ORDERED,
     ALL_PIECES,
+    ALL_DICE,
     rollDice,
 });

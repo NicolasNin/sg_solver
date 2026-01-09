@@ -52,3 +52,78 @@ def radial_to_cartesian(theta,radius,cx,cy):
     y = cy +radius * np.sin(theta)
     return int(x),int(y)
 
+
+
+def rotationMatrixToEulerXYZ(R):
+    sy = np.sqrt(R[0, 0]**2 + R[1, 0]**2)
+    singular = sy < 1e-6
+
+    if not singular:
+        x = np.arctan2(R[2, 1], R[2, 2])   # roll  about X
+        y = np.arctan2(-R[2, 0], sy)       # pitch about Y
+        z = np.arctan2(R[1, 0], R[0, 0])   # yaw   about Z
+    else:
+        x = np.arctan2(-R[1, 2], R[1, 1])
+        y = np.arctan2(-R[2, 0], sy)
+        z = 0.0
+
+    return np.degrees(np.array([x, y, z]))
+
+
+def correct_for_height(point_warped_naive, h, R, t, K_ref, scale_factor=1.0):
+    """
+    Given a point that was warped assuming z=0, correct it for actual height h.
+    
+    The correction depends on the viewing angle (from R) and height h.
+    
+    Args:
+        point_warped_naive: (x, y) in warped image (computed with H assuming z=0)
+        h: actual height of the point
+        R: rotation matrix from decomposition
+        t: translation vector from decomposition  
+        K_ref: intrinsic matrix for the reference/warped image
+        scale_factor: converts h to the same units as t (you'll need to calibrate this)
+    
+    Returns:
+        corrected_point: (x, y) corrected position in warped image
+    """
+    # Extract the "tilt" from the rotation matrix
+    # R transforms from original camera frame to rectified frame
+    
+    # The translation t (normalized) gives the viewing direction change
+    # For a top-down rectified view, t indicates how "off-axis" the original view was
+    
+    t_normalized = t.ravel() / (np.linalg.norm(t.ravel()) + 1e-9)
+    
+    # The shift due to height h is proportional to h and the horizontal components of t
+    # In the rectified (top-down) view, the shift is:
+    #   delta_x ≈ h * t[0] / t[2] * scale
+    #   delta_y ≈ h * t[1] / t[2] * scale
+    
+    # But we need to be more careful with the geometry...
+    
+    # Alternative: use the rotation to find the viewing angle
+    # The camera's optical axis in the board frame
+    optical_axis_in_board = R.T @ np.array([0, 0, 1])
+    
+    # The tilt angles
+    tilt_x = np.arctan2(optical_axis_in_board[0], optical_axis_in_board[2])
+    tilt_y = np.arctan2(optical_axis_in_board[1], optical_axis_in_board[2])
+    
+    # Shift in board coordinates (mm or whatever units h is in)
+    shift_board_x = h * np.tan(tilt_x)
+    shift_board_y = h * np.tan(tilt_y)
+    
+    # Convert to pixels in warped image
+    # You need the scale: pixels per unit length in the warped image
+    # This depends on your setup - you might know this from your reference board
+    
+    shift_px_x = shift_board_x * scale_factor
+    shift_px_y = shift_board_y * scale_factor
+    
+    corrected = np.array([
+        point_warped_naive[0] - shift_px_x,
+        point_warped_naive[1] - shift_px_y
+    ])
+    
+    return corrected

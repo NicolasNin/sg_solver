@@ -1,9 +1,9 @@
 from scipy.signal import find_peaks
 import cv2
 import numpy as np
-from anchor_helpers import *
-from mask_helpers import get_center
-from reference_data import cropped_image_ref_SHAPE
+from board_detection.anchor_helpers import *
+from board_detection.mask_helpers import get_center
+from board_detection.reference_data import cropped_image_ref_SHAPE
 
 def get_peaks_and_valley(r,profile,d=20,p=0.03):
     #r = radii_sorted_extended

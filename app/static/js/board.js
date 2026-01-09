@@ -171,11 +171,11 @@ class Board {
     _setupSVG() {
         this.svg.setAttribute('viewBox', `0 0 ${this.bounds.width.toFixed(0)} ${this.bounds.height.toFixed(0)}`);
 
-        // Create background
+        // Create background (transparent to show page background)
         const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
         bg.setAttribute('width', '100%');
         bg.setAttribute('height', '100%');
-        bg.setAttribute('fill', '#0d1117');
+        bg.setAttribute('fill', 'transparent');
         this.svg.appendChild(bg);
 
         // Create groups for layering
@@ -544,6 +544,26 @@ class Board {
     // Check if solved (all cells occupied)
     isSolved() {
         return this.occupied.size === this.cells.size;
+    }
+
+    // Clear all pieces without re-rendering board (for solve operations)
+    clearAllPieces() {
+        // Remove piece visuals
+        for (const [name, group] of this.pieceElements) {
+            group.remove();
+        }
+        this.pieceElements.clear();
+
+        // Clear piece occupancy from logic (keep blockers)
+        const toRemove = [];
+        for (const [key, value] of this.occupied) {
+            if (value !== null) {  // null = blocker, keep it
+                toRemove.push(key);
+            }
+        }
+        for (const key of toRemove) {
+            this.occupied.delete(key);
+        }
     }
 
     // Reset board

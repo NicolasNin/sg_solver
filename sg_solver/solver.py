@@ -144,6 +144,38 @@ def reverse_translate(target: TrianglePos, triangle: TrianglePos) -> TrianglePos
     return TrianglePos(x=anchor_x, y=anchor_y, points_up=anchor_up)
 
 
+def solve_puzzle_from_board(board: Board, slow: float = 0, difficulty: int = 0) -> Board | None:
+    """
+    Solve a puzzle from an existing board state with pieces and blockers.
+    
+    Args:
+        board: Board with blockers and optionally some pieces already placed
+        slow: Delay between steps (for visualization)
+        difficulty: 0-4, determines adjacency constraints
+        
+    Returns:
+        Solved board or None if not solvable.
+        
+    Raises:
+        ValueError: If board doesn't have exactly 7 blockers
+    """
+    # Count blockers (occupied positions with None value)
+    blocker_count = sum(1 for piece_name in board.occupied.values() if piece_name is None)
+    if blocker_count != 7:
+        raise ValueError(f"Board must have exactly 7 blockers, found {blocker_count}")
+    
+    # Find which pieces are already placed
+    placed_piece_names = set(board.placements.keys())
+    
+    # Get remaining pieces (not yet placed)
+    remaining_pieces = [p for p in ALL_PIECES if p.name not in placed_piece_names]
+    
+    # Sort by size (largest first)
+    remaining_pieces = sorted(remaining_pieces, key=lambda p: len(p.triangles), reverse=True)
+    
+    return solve(board, remaining_pieces, slow, difficulty)
+
+
 def solve_puzzle(blocker_ids: list[int], slow: float = 0, difficulty: int = 0) -> Board | None:
     """
     Main entry point. Takes 7 dice values (cell IDs to block).

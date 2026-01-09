@@ -1,8 +1,10 @@
 import cv2
-from segment_anything import sam_model_registry, SamPredictor,SamAutomaticMaskGenerator
+from pathlib import Path
+from segment_anything import sam_model_registry, SamPredictor, SamAutomaticMaskGenerator
 
-# Load SAM model
-_sam = sam_model_registry["vit_b"](checkpoint="sam_vit_b_01ec64.pth")
+# Load SAM model from models/ at project root
+_MODEL_PATH = Path(__file__).parent.parent / "models" / "sam_vit_b_01ec64.pth"
+_sam = sam_model_registry["vit_b"](checkpoint=str(_MODEL_PATH))
 _sam.to("cuda")
 #predictor = SamPredictor(sam)
 
