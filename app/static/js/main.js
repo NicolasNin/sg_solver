@@ -158,6 +158,10 @@ function setupEventListeners(SG) {
         startNewGame(blockers);
     });
 
+    document.getElementById('btn-choose-dice').addEventListener('click', () => {
+        showDiceModal(SG);
+    });
+
     document.getElementById('btn-photo').addEventListener('click', () => {
         document.getElementById('photo-input').click();
     });
@@ -169,10 +173,27 @@ function setupEventListeners(SG) {
         }
     });
 
+    // Dice modal buttons
+    document.getElementById('btn-start-dice').addEventListener('click', () => {
+        const blockers = getSelectedDiceValues();
+        if (blockers.length === 7) {
+            hideDiceModal();
+            startNewGame(blockers);
+        }
+    });
+
+    document.getElementById('btn-cancel-dice').addEventListener('click', () => {
+        hideDiceModal();
+    });
+
     // Game controls
     document.getElementById('btn-new-game').addEventListener('click', () => {
         const blockers = SG.rollDice();
         startNewGame(blockers);
+    });
+
+    document.getElementById('btn-choose-dice-game').addEventListener('click', () => {
+        showDiceModalFromGame(SG);
     });
 
     document.getElementById('btn-rotate').addEventListener('click', () => {
@@ -188,7 +209,11 @@ function setupEventListeners(SG) {
     });
 
     document.getElementById('btn-solve').addEventListener('click', async () => {
-        await solveCurrentPuzzle();
+        await solveCurrentPuzzle(true);  // Solve from current position
+    });
+
+    document.getElementById('btn-solve-full').addEventListener('click', async () => {
+        await solveCurrentPuzzle(false, true);  // Solve from scratch, reset before applying
     });
 
     // DEBUG: Listen for test-solve event from game.js
@@ -196,6 +221,105 @@ function setupEventListeners(SG) {
         console.log('[main.js] Received test-solve event');
         await testSolveDebug();
     });
+}
+
+// Dice selection state
+let diceSelections = [null, null, null, null, null, null, null];
+
+function showDiceModal(SG) {
+    const modal = document.getElementById('dice-modal');
+    const table = document.getElementById('dice-table');
+
+    // Reset selections
+    diceSelections = [null, null, null, null, null, null, null];
+
+    // Populate dice values
+    const rows = table.querySelectorAll('tr[data-die]');
+    rows.forEach((row, dieIndex) => {
+        const optionsCell = row.querySelector('.die-options');
+        optionsCell.innerHTML = '';
+
+        const dieValues = SG.ALL_DICE[dieIndex];
+        dieValues.forEach(value => {
+            const btn = document.createElement('button');
+            btn.className = 'dice-value';
+            btn.textContent = value;
+            btn.dataset.value = value;
+            btn.addEventListener('click', () => selectDiceValue(dieIndex, value, btn));
+            optionsCell.appendChild(btn);
+        });
+    });
+
+    // Disable start button initially
+    document.getElementById('btn-start-dice').disabled = true;
+
+    // Show modal
+    document.getElementById('start-modal').classList.add('hidden');
+    modal.classList.remove('hidden');
+}
+
+// Track where we came from (start modal or game)
+let diceModalFromGame = false;
+
+function hideDiceModal() {
+    document.getElementById('dice-modal').classList.add('hidden');
+    if (diceModalFromGame) {
+        // Coming from game - just hide the modal
+        diceModalFromGame = false;
+    } else {
+        // Coming from start modal - show it again
+        document.getElementById('start-modal').classList.remove('hidden');
+    }
+}
+
+function showDiceModalFromGame(SG) {
+    diceModalFromGame = true;
+    const modal = document.getElementById('dice-modal');
+    const table = document.getElementById('dice-table');
+
+    // Reset selections
+    diceSelections = [null, null, null, null, null, null, null];
+
+    // Populate dice values
+    const rows = table.querySelectorAll('tr[data-die]');
+    rows.forEach((row, dieIndex) => {
+        const optionsCell = row.querySelector('.die-options');
+        optionsCell.innerHTML = '';
+
+        const dieValues = SG.ALL_DICE[dieIndex];
+        dieValues.forEach(value => {
+            const btn = document.createElement('button');
+            btn.className = 'dice-value';
+            btn.textContent = value;
+            btn.dataset.value = value;
+            btn.addEventListener('click', () => selectDiceValue(dieIndex, value, btn));
+            optionsCell.appendChild(btn);
+        });
+    });
+
+    // Disable start button initially
+    document.getElementById('btn-start-dice').disabled = true;
+
+    // Show modal
+    modal.classList.remove('hidden');
+}
+
+function selectDiceValue(dieIndex, value, clickedBtn) {
+    // Deselect previous selection in this row
+    const row = clickedBtn.closest('tr');
+    row.querySelectorAll('.dice-value').forEach(btn => btn.classList.remove('selected'));
+
+    // Select new value
+    clickedBtn.classList.add('selected');
+    diceSelections[dieIndex] = value;
+
+    // Update start button state
+    const allSelected = diceSelections.every(v => v !== null);
+    document.getElementById('btn-start-dice').disabled = !allSelected;
+}
+
+function getSelectedDiceValues() {
+    return diceSelections.filter(v => v !== null);
 }
 
 function startNewGame(blockers) {
@@ -216,9 +340,46 @@ async function loadFromPhoto(file) {
 
         if (result.blockers && result.blockers.length > 0) {
             startNewGame(result.blockers);
+
+            // Place detected pieces if any
+            if (result.pieces && Object.keys(result.pieces).length > 0) {
+                console.log('Detected pieces:', result.pieces);
+                console.log('Detected orientations:', result.orientations);
+                console.log('Detected anchors:', result.anchors);
+
+                // Apply pieces with correct orientations
+                for (const [pieceName, cellIds] of Object.entries(result.pieces)) {
+                    // Get cell positions from cell IDs
+                    const positions = cellIds.map(id => game.board.getCellById(id)).filter(p => p);
+                    if (positions.length > 0) {
+                        // Get orientation from detection result
+                        const orientation = result.orientations?.[pieceName] || 0;
+
+                        // Get anchor cell ID from detection result
+                        const anchorId = result.anchors?.[pieceName];
+                        const anchorPos = anchorId ? game.board.getCellById(anchorId) : positions[0];
+
+                        // Place piece on board
+                        game.board.placePiece(pieceName, positions);
+                        game.placedPieces.set(pieceName, orientation);
+
+                        // Get the correctly oriented piece for rendering
+                        const orientedPiece = window.StarGenius.PIECE_ORIENTATIONS[pieceName]?.[orientation]
+                            || window.StarGenius.PIECE_DEFINITIONS[pieceName];
+
+                        if (orientedPiece && anchorPos) {
+                            // Get snap position using correct anchor cell
+                            const snapPos = game.board.getSnapPositionForPiece(orientedPiece, anchorPos);
+                            if (snapPos) {
+                                game.board.renderPiece(orientedPiece, snapPos[0], snapPos[1], orientation);
+                            }
+                        }
+                    }
+                }
+                game._updateUI();
+            }
         } else {
             alert('Could not detect blockers in image');
-            hideLoading();
         }
     } catch (error) {
         hideLoading();
@@ -226,22 +387,50 @@ async function loadFromPhoto(file) {
     }
 }
 
-async function solveCurrentPuzzle() {
-    showLoading('Solving puzzle...');
+async function solveCurrentPuzzle(useFullBoard = false, resetBeforeApply = false) {
+    // Use status text instead of loading modal to avoid flicker
+    const statusEl = document.getElementById('header-status');
+    if (statusEl) {
+        statusEl.textContent = '🔄 Solving...';
+        statusEl.style.color = '#58a6ff';
+    }
 
     try {
         const state = game.board.getState();
+        state.use_full_board = useFullBoard;
         const result = await window.StarGenius.api.solvePuzzle(state);
-        hideLoading();
 
-        if (result.solution) {
+        if (result.solution && Object.keys(result.solution).length > 0) {
+            // Efficiently clear pieces without re-rendering board
+            if (resetBeforeApply) {
+                game.clearPiecesForSolve();
+            }
             game.applySolution(result.solution, result.orientations, result.anchors);
+            if (statusEl) {
+                statusEl.style.color = '';
+                statusEl.textContent = '✓ Solution applied';
+            }
         } else {
-            alert('No solution found');
+            // Friendly message
+            if (statusEl) {
+                statusEl.textContent = '❌ No solution found - try a different arrangement';
+                statusEl.style.color = '#ff6b6b';
+                setTimeout(() => {
+                    statusEl.style.color = '';
+                    statusEl.textContent = 'Drag pieces onto the board';
+                }, 3000);
+            }
         }
     } catch (error) {
-        hideLoading();
-        alert('Solver error: ' + error.message);
+        // Show error in status
+        if (statusEl) {
+            statusEl.textContent = `⚠️ ${error.message}`;
+            statusEl.style.color = '#ffa502';
+            setTimeout(() => {
+                statusEl.style.color = '';
+                statusEl.textContent = 'Drag pieces onto the board';
+            }, 3000);
+        }
     }
 }
 

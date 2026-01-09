@@ -52,10 +52,26 @@ class Game {
         //         this._onCellClick(cell);
         //     }
         // });
-
-        // Right-click to remove
+        // Right-click to flip piece or remove from cell
         this.board.svg.addEventListener('contextmenu', (e) => {
             e.preventDefault();
+
+            // Check if clicking on a piece - flip it
+            const pieceGroup = e.target.closest('.piece-group');
+            if (pieceGroup) {
+                const pieceName = pieceGroup.dataset.piece;
+                // Select the piece if not already selected
+                if (this.selectedPiece !== pieceName) {
+                    const rotation = parseInt(pieceGroup.dataset.rotation || 0);
+                    this.selectedPiece = pieceName;
+                    this.currentOrientation = rotation;
+                    this._updateUI();
+                }
+                this.flip();
+                return;
+            }
+
+            // Otherwise, check if clicking on a cell
             const cell = e.target.closest('.board-cell');
             if (cell) {
                 this._onCellRightClick(cell);
@@ -86,11 +102,13 @@ class Game {
         });
 
         this.board.svg.addEventListener('mouseup', (e) => {
+            if (e.button !== 0) return;  // Ignore right-clicks
             this._onMouseUp(e);
         });
 
         // Global mouse up to catch drops outside SVG
-        document.addEventListener('mouseup', () => {
+        document.addEventListener('mouseup', (e) => {
+            if (e.button !== 0) return;  // Ignore right-clicks
             if (this.isDragging) {
                 this._cancelDrag();
             }
@@ -98,7 +116,7 @@ class Game {
     }
 
     // Initialize game with blockers
-    startGame(blockerIds, resetTimer = true) {
+    startGame(blockerIds, resetTimer = true, skipPieceRender = false) {
         this.board.reset();
         this.placedPieces.clear();
         this.selectedPiece = null;
@@ -110,33 +128,36 @@ class Game {
             this.board.placeBlocker(id);
         }
 
-        // Initialize pieces on the sidelines
-        // Initialize pieces with 3-zone layout (Left, Right, Bottom)
-        const INITIAL_POSITIONS = {
-            // Left Zone
-            "4D": { x: 50, y: 120 },    // Brown - Lowered start
-            "T4": { x: 50, y: 260 },   // Pink - Spaced out (+140)
-            "TF": { x: 50, y: 400 },   // Purple
-            "T3": { x: 50, y: 540 },   // Cyan
-            "T1": { x: 100, y: 680 },  // Blue
+        // Skip rendering pieces if we're about to apply a solution
+        if (!skipPieceRender) {
+            // Initialize pieces on the sidelines
+            // Initialize pieces with 3-zone layout (Left, Right, Bottom)
+            const INITIAL_POSITIONS = {
+                // Left Zone - moved right a bit
+                "4D": { x: 150, y: 100 },    // Brown
+                "T4": { x: 80, y: 300 },    // Pink
+                "TF": { x: 80, y: 480 },    // Purple
+                "T3": { x: 80, y: 600 },    // Cyan
+                "T1": { x: 100, y: 700 },   // Blue
 
-            // Right Zone
-            "EL": { x: 1000, y: 120 },   // Green - Lowered start
-            "L4": { x: 1000, y: 260 },  // Orange
-            "3B": { x: 1000, y: 400 },  // Cyan pair
-            "T2": { x: 1050, y: 540 },  // Yellow
+                // Right Zone - more vertical spacing
+                "EL": { x: 1000, y: 100 },   // Green
+                "L4": { x: 1000, y: 280 },   // Orange
+                "3B": { x: 1000, y: 480 },   // Cyan pair
+                "T2": { x: 950, y: 600 },   // Yellow
 
-            // Bottom Zone
-            "T5": { x: 300, y: 700 },   // Red - Raised slightly
-            "4U": { x: 700, y: 700 },   // Lime
-        };
+                // Bottom Zone
+                "T5": { x: 350, y: 700 },    // Red
+                "4U": { x: 700, y: 700 },    // Lime
+            };
 
-        const allPieces = SG_GAME.ALL_PIECES; // Ensure we iterate all known pieces
-        allPieces.forEach(name => {
-            const piece = SG_GAME.PIECE_DEFINITIONS[name];
-            const pos = INITIAL_POSITIONS[name] || { x: 0, y: 0 }; // Fallback
-            this.board.renderPiece(piece, pos.x, pos.y, 0);
-        });
+            const allPieces = SG_GAME.ALL_PIECES; // Ensure we iterate all known pieces
+            allPieces.forEach(name => {
+                const piece = SG_GAME.PIECE_DEFINITIONS[name];
+                const pos = INITIAL_POSITIONS[name] || { x: 0, y: 0 }; // Fallback
+                this.board.renderPiece(piece, pos.x, pos.y, 0);
+            });
+        }
 
         this._updateUI();
         this._setStatus('Drag pieces onto the board');
@@ -253,6 +274,9 @@ class Game {
     }
 
     _onMouseDown(e) {
+        // Ignore right-clicks - they're handled by contextmenu
+        if (e.button !== 0) return;
+
         // Check if we clicked a piece group
         const group = e.target.closest('.piece-group');
         if (!group) {
@@ -583,8 +607,16 @@ class Game {
     }
 
     // Reset to just blockers
-    resetToBlockers() {
-        this.startGame(this.blockers, false);
+    resetToBlockers(skipPieceRender = false) {
+        this.startGame(this.blockers, false, skipPieceRender);
+    }
+
+    // Efficiently clear pieces for solve (doesn't re-render board cells)
+    clearPiecesForSolve() {
+        this.board.clearAllPieces();
+        this.placedPieces.clear();
+        this.selectedPiece = null;
+        this.currentOrientation = 0;
     }
 
     // Apply solution from solver

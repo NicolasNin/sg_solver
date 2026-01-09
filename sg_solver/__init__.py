@@ -9,6 +9,6 @@ Core components:
 
 from .board import Board, Piece, TrianglePos
 from .pieces import ALL_PIECES, PIECE_ORIENTATIONS
-from .solver import solve_puzzle
+from .solver import solve_puzzle, solve_puzzle_from_board
 from .viz import render_svg, display_board
 from .dices import roll_dice

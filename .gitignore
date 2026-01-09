@@ -3,9 +3,10 @@ __pycache__/
 notebooks/
 .ipynb_checkpoints/
 data/
+models/
 *.py[cod]
 *$py.class
-
+*:Zone.Identifier
 # C extensions
 *.so
 
