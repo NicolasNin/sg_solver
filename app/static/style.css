@@ -178,8 +178,19 @@ main {
 
 #board-container {
     overflow: auto;
-    /* Allow board to scroll if needed within the container */
     background: transparent;
+    touch-action: none;
+    /* Prevent scroll on touch - allow dragging */
+}
+
+#board-svg {
+    touch-action: none;
+    /* Prevent scroll on SVG touches */
+    cursor: grab;
+}
+
+#board-svg:active {
+    cursor: grabbing;
 }
 
 /* Palette */
@@ -622,8 +633,30 @@ kbd {
     margin-top: 20px;
 }
 
+/* Mobile Controls */
+.mobile-controls {
+    display: none;
+    /* Hidden by default */
+    gap: 12px;
+    padding: 16px;
+    justify-content: center;
+}
+
+.btn-mobile {
+    flex: 1;
+    max-width: 200px;
+    padding: 16px 24px;
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
 /* Mobile Responsive */
 @media (max-width: 768px) {
+    .mobile-controls {
+        display: flex;
+        /* Show on mobile */
+    }
+
     main {
         grid-template-columns: 1fr;
         /* Stack vertically on mobile */

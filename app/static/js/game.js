@@ -113,6 +113,55 @@ class Game {
                 this._cancelDrag();
             }
         });
+
+        // Touch Events for Mobile
+        this.board.svg.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const target = document.elementFromPoint(touch.clientX, touch.clientY);
+            const mouseEvent = new MouseEvent('mousedown', {
+                clientX: touch.clientX,
+                clientY: touch.clientY,
+                button: 0,
+                bubbles: true
+            });
+            Object.defineProperty(mouseEvent, 'target', { value: target, enumerable: true });
+            this._onMouseDown(mouseEvent);
+        }, { passive: false });
+
+        this.board.svg.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const target = document.elementFromPoint(touch.clientX, touch.clientY);
+            const mouseEvent = new MouseEvent('mousemove', {
+                clientX: touch.clientX,
+                clientY: touch.clientY,
+                bubbles: true
+            });
+            Object.defineProperty(mouseEvent, 'target', { value: target, enumerable: true });
+            this._onMouseMove(mouseEvent);
+        }, { passive: false });
+
+        this.board.svg.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            const touch = e.changedTouches[0];
+            const target = document.elementFromPoint(touch.clientX, touch.clientY);
+            const mouseEvent = new MouseEvent('mouseup', {
+                clientX: touch.clientX,
+                clientY: touch.clientY,
+                button: 0,
+                bubbles: true
+            });
+            Object.defineProperty(mouseEvent, 'target', { value: target, enumerable: true });
+            this._onMouseUp(mouseEvent);
+        }, { passive: false });
+
+        // Global touch end to catch drops outside SVG
+        document.addEventListener('touchend', (e) => {
+            if (this.isDragging) {
+                this._cancelDrag();
+            }
+        }, { passive: false });
     }
 
     // Initialize game with blockers
