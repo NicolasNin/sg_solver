@@ -369,9 +369,6 @@ function initializeGame(SG) {
     // Connect win callback
     game.onWinCallback = handleGameWin;
 
-    // Create piece palette
-    createPalette(SG);
-
     // Update player name display
     updatePlayerNameDisplay();
 }

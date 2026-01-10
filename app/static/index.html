@@ -88,25 +88,11 @@
             <div class="header-controls">
                 <span id="player-name" class="player-name" title="Click to edit">👤 Anonymous</span>
                 <div id="best-time" class="best-time hidden">🏆 --:--</div>
-                <select id="lang-select" title="Language">
-                    <option value="en">🇬🇧 EN</option>
-                    <option value="fr">🇫🇷 FR</option>
-                </select>
-                <select id="theme-select" title="Choose theme">
-                    <option value="dark" data-i18n="dark">🌙 Dark</option>
-                    <option value="pastel" data-i18n="pastel">🎨 Pastel</option>
-                </select>
                 <div id="timer" class="timer">00:00</div>
             </div>
         </header>
 
         <main>
-            <!-- Piece Palette -->
-            <aside id="palette">
-                <h2 data-i18n="pieces">Pieces</h2>
-                <div id="piece-list"></div>
-            </aside>
-
             <!-- Board Area -->
             <section id="board-container">
                 <svg id="board-svg" viewBox="0 0 500 500"></svg>
@@ -138,6 +124,16 @@
                         <li><kbd>R</kbd> <span data-i18n="rotateKey">/ Scroll Rotate</span></li>
                         <li><kbd>F</kbd> <span data-i18n="flipKey">/ Right-click Flip</span></li>
                     </ul>
+                </div>
+                <div class="settings-section">
+                    <select id="lang-select" title="Language">
+                        <option value="en">🇬🇧 EN</option>
+                        <option value="fr">🇫🇷 FR</option>
+                    </select>
+                    <select id="theme-select" title="Choose theme">
+                        <option value="dark" data-i18n="dark">🌙 Dark</option>
+                        <option value="pastel" data-i18n="pastel">🎨 Pastel</option>
+                    </select>
                 </div>
             </aside>
         </main>

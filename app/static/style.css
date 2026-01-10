@@ -167,13 +167,12 @@ header h1 {
 /* Main Layout */
 main {
     display: grid;
-    grid-template-columns: 200px 1fr 220px;
+    grid-template-columns: 1fr 220px;
+    /* Board + Controls only */
     gap: 20px;
     padding: 20px;
     height: calc(100vh - 100px);
-    /* Restore fixed height to force internal scrolling */
     overflow: hidden;
-    /* Prevent body scroll */
     background: transparent;
 }
 
@@ -299,6 +298,8 @@ main {
     margin-top: 24px;
     font-size: 0.8rem;
     color: var(--text-secondary);
+    border-top: 1px solid var(--border-color);
+    padding-top: 16px;
 }
 
 #controls-info p {
@@ -307,11 +308,25 @@ main {
 
 #controls-info ul {
     list-style: none;
-    margin-bottom: 16px;
+    padding: 0;
+    margin: 8px 0 0 0;
 }
 
 #controls-info li {
-    margin-bottom: 4px;
+    margin: 4px 0;
+}
+
+.settings-section {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.settings-section select {
+    width: 100%;
 }
 
 kbd {
@@ -605,4 +620,36 @@ kbd {
     gap: 12px;
     justify-content: center;
     margin-top: 20px;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    main {
+        grid-template-columns: 1fr;
+        /* Stack vertically on mobile */
+        height: auto;
+        padding: 10px;
+    }
+
+    header {
+        flex-direction: column;
+        gap: 10px;
+        padding: 12px;
+    }
+
+    .header-controls {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+    }
+
+
+    #controls-info {
+        display: none;
+        /* Hide keyboard shortcuts on mobile */
+    }
+
+    #board-container {
+        min-height: 400px;
+    }
 }
