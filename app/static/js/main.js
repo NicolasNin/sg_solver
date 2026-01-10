@@ -4,11 +4,12 @@
  * Initializes the game and wires up UI controls.
  */
 
-// API Configuration - matches api.js pattern
-const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const API_BASE_URL = IS_LOCAL
-    ? 'http://localhost:8000'
-    : 'https://sg.ninin.space';
+// API Configuration - get base URL (api.js is loaded first)
+function getApiBase() {
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    return isLocal ? 'http://localhost:8000' : 'https://sg.ninin.space';
+}
+const API_BASE_URL = getApiBase();
 
 let board;
 let game;
