@@ -116,9 +116,41 @@ class Game {
 
         // Touch Events for Mobile - track the specific touch that started the drag
         this.board.svg.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            // Use changedTouches to get the NEW touch, not touches[0] which might be the first finger
+            // Check if we hit a piece
             const touch = e.changedTouches[0];
+            const target = document.elementFromPoint(touch.clientX, touch.clientY);
+            const isPiece = target && target.closest('.piece-group');
+
+            // Only prevent default (scrolling) if we are touching a piece
+            if (isPiece) {
+                e.preventDefault();
+
+                // Double Tap to Rotate Logic
+                const now = Date.now();
+                const pieceName = target.closest('.piece-group').getAttribute('data-piece');
+
+                // Allow a 300ms window for double tap
+                if (this._lastTouchTime && (now - this._lastTouchTime < 300) && this._lastTouchPiece === pieceName) {
+                    if (window.debugLog) window.debugLog('Double tap detected!');
+
+                    // We need to ensure the piece is selected before rotating
+                    // The mousedown simulation below will select it, but we want to rotate immediately.
+                    // However, 'rotate()' relies on 'this.selectedPiece'.
+                    // So we let the mousedown happen first, then check if we should rotate immediately after.
+                    this._shouldRotateOnTap = true;
+                } else {
+                    this._shouldRotateOnTap = false;
+                }
+
+                this._lastTouchTime = now;
+                this._lastTouchPiece = pieceName;
+
+            } else {
+                // Let scrolling happen!
+                return;
+            }
+
+            // Use changedTouches to get the NEW touch, not touches[0] which might be the first finger
 
             // Debug
             if (window.debugLog) window.debugLog('SVG start id:' + touch.identifier + ' total:' + e.touches.length);
@@ -132,7 +164,6 @@ class Game {
                 return;
             }
 
-            const target = document.elementFromPoint(touch.clientX, touch.clientY);
             const mouseEvent = new MouseEvent('mousedown', {
                 clientX: touch.clientX,
                 clientY: touch.clientY,
@@ -141,10 +172,15 @@ class Game {
             });
             Object.defineProperty(mouseEvent, 'target', { value: target, enumerable: true });
             this._onMouseDown(mouseEvent);
+
+            // Execute rotation AFTER selection
+            if (this._shouldRotateOnTap && this.selectedPiece) {
+                this.rotate(1);
+                this._shouldRotateOnTap = false;
+            }
         }, { passive: false });
 
         this.board.svg.addEventListener('touchmove', (e) => {
-            e.preventDefault();
             // Find the touch that started the drag
             let touch = null;
             for (let i = 0; i < e.touches.length; i++) {
@@ -153,16 +189,22 @@ class Game {
                     break;
                 }
             }
-            if (!touch) return;
 
-            const target = document.elementFromPoint(touch.clientX, touch.clientY);
-            const mouseEvent = new MouseEvent('mousemove', {
-                clientX: touch.clientX,
-                clientY: touch.clientY,
-                bubbles: true
-            });
-            Object.defineProperty(mouseEvent, 'target', { value: target, enumerable: true });
-            this._onMouseMove(mouseEvent);
+            // If this touch is the one dragging a piece, prevent default (scrolling)
+            if (touch && this.isDragging) {
+                e.preventDefault();
+
+                const target = document.elementFromPoint(touch.clientX, touch.clientY);
+                const mouseEvent = new MouseEvent('mousemove', {
+                    clientX: touch.clientX,
+                    clientY: touch.clientY,
+                    bubbles: true
+                });
+                Object.defineProperty(mouseEvent, 'target', { value: target, enumerable: true });
+                this._onMouseMove(mouseEvent);
+            }
+            // else: let scrolling happen
+
         }, { passive: false });
 
         this.board.svg.addEventListener('touchend', (e) => {
@@ -253,34 +295,98 @@ class Game {
         }
 
         // Skip rendering pieces if we're about to apply a solution
+        // Skip rendering pieces if we're about to apply a solution
         if (!skipPieceRender) {
-            // Initialize pieces on the sidelines
-            // Initialize pieces with 3-zone layout (Left, Right, Bottom)
-            const INITIAL_POSITIONS = {
-                // Left Zone - moved right a bit
-                "4D": { x: 150, y: 100 },    // Brown
-                "T4": { x: 80, y: 300 },    // Pink
-                "TF": { x: 80, y: 480 },    // Purple
-                "T3": { x: 80, y: 600 },    // Cyan
-                "T1": { x: 100, y: 700 },   // Blue
+            // Check for mobile width (e.g., < 768px matches CSS)
+            const isMobile = window.innerWidth <= 768;
 
-                // Right Zone - more vertical spacing
-                "EL": { x: 1000, y: 100 },   // Green
-                "L4": { x: 1000, y: 280 },   // Orange
-                "3B": { x: 1000, y: 480 },   // Cyan pair
-                "T2": { x: 950, y: 600 },   // Yellow
+            if (isMobile) {
+                // Mobile Layout: Vertical Tray below board
+                // Expand board height to accommodate pieces
+                // Board is approx 800 high? Let's check calculateBounds or just add enough space.
+                // Assuming board height is around 800-900.
+                // Let's add 1000px for pieces.
+                // Note: We need a reliable way to get the board base height.
+                // But for now, let's assume we start placing at Y=900.
 
-                // Bottom Zone
-                "T5": { x: 350, y: 700 },    // Red
-                "4U": { x: 700, y: 700 },    // Lime
-            };
+                // Mobile Layout: Vertical Tray below board
+                const trayHeight = 1200;
+                // Crop viewbox to board and extend down
+                const viewStats = this.board.setMobileView(trayHeight);
 
-            const allPieces = SG_GAME.ALL_PIECES; // Ensure we iterate all known pieces
-            allPieces.forEach(name => {
-                const piece = SG_GAME.PIECE_DEFINITIONS[name];
-                const pos = INITIAL_POSITIONS[name] || { x: 0, y: 0 }; // Fallback
-                this.board.renderPiece(piece, pos.x, pos.y, 0);
-            });
+                // We need to place pieces relative to the new ViewBox coordinates.
+                // The board is at viewStats.tight.minPx ...
+                // The tray starts at: viewStats.tight.maxPy + padding
+
+                const startY = viewStats.tight.maxPy + 50;
+                const centerX = viewStats.tight.minPx + viewStats.tight.width / 2;
+
+                // Grid: 3 columns centered on centerX
+                // Space between columns: 220px?
+                const colSpacing = 220;
+
+                const MO_LAYOUT = {
+                    col1: centerX - colSpacing,
+                    col2: centerX,
+                    col3: centerX + colSpacing,
+                    rowH: 220
+                };
+
+                const trayPositions = [
+                    { x: MO_LAYOUT.col1 + 50, y: startY - MO_LAYOUT.rowH * 0.5 },        // T5
+                    { x: MO_LAYOUT.col1 + 50, y: startY - 620 },        // 4U
+                    { x: MO_LAYOUT.col3 + 50, y: startY - 640 },        // 4D
+
+                    { x: MO_LAYOUT.col1 + 20, y: startY },     // EL
+                    { x: MO_LAYOUT.col2 + 20, y: startY },     // T4
+                    { x: MO_LAYOUT.col3, y: startY },     // L4
+
+                    { x: MO_LAYOUT.col3, y: startY - MO_LAYOUT.rowH * 0.5 },   // TF
+                    { x: MO_LAYOUT.col2, y: startY + MO_LAYOUT.rowH * 0.5 },   // T3
+                    { x: MO_LAYOUT.col3, y: startY + MO_LAYOUT.rowH * 0.5 },   // 3B
+
+                    { x: MO_LAYOUT.col3 + 50, y: startY - 400 },   // T2
+                    { x: MO_LAYOUT.col1 - 50, y: startY - 400 },   // T1
+                ];
+
+                const allPieces = SG_GAME.ALL_PIECES;
+                allPieces.forEach((name, idx) => {
+                    const piece = SG_GAME.PIECE_DEFINITIONS[name];
+                    const pos = trayPositions[idx] || { x: 0, y: 0 };
+                    this.board.renderPiece(piece, pos.x, pos.y, 0);
+                });
+
+            } else {
+                // Desktop Layout (Original)
+                this.board.resetViewBox(); // Ensure standard size
+
+                // Initialize pieces with 3-zone layout (Left, Right, Bottom)
+                const INITIAL_POSITIONS = {
+                    // Left Zone - moved right a bit
+                    "4D": { x: 150, y: 100 },    // Brown
+                    "T4": { x: 80, y: 300 },    // Pink
+                    "TF": { x: 80, y: 480 },    // Purple
+                    "T3": { x: 80, y: 600 },    // Cyan
+                    "T1": { x: 100, y: 700 },   // Blue
+
+                    // Right Zone - more vertical spacing
+                    "EL": { x: 1000, y: 100 },   // Green
+                    "L4": { x: 1000, y: 280 },   // Orange
+                    "3B": { x: 1000, y: 480 },   // Cyan pair
+                    "T2": { x: 950, y: 600 },   // Yellow
+
+                    // Bottom Zone
+                    "T5": { x: 350, y: 700 },    // Red
+                    "4U": { x: 700, y: 700 },    // Lime
+                };
+
+                const allPieces = SG_GAME.ALL_PIECES; // Ensure we iterate all known pieces
+                allPieces.forEach(name => {
+                    const piece = SG_GAME.PIECE_DEFINITIONS[name];
+                    const pos = INITIAL_POSITIONS[name] || { x: 0, y: 0 }; // Fallback
+                    this.board.renderPiece(piece, pos.x, pos.y, 0);
+                });
+            }
         }
 
         this._updateUI();

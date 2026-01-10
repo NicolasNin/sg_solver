@@ -7,10 +7,10 @@
 // API Configuration - get base URL (api.js is loaded first)
 function getApiBase() {
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    return isLocal ? 'http://localhost:8000' : 'http://192.168.1.11:8000';
+    return isLocal ? 'http://localhost:8000' : 'https://sg.ninin.space';
 }
-// for test I remove   'https://sg.ninin.space';
-
+// switch to 'https://sg.ninin.space'; for production
+//http://192.168.1.11:8000 for testing local
 const API_BASE_URL = getApiBase();
 
 // Debug helper - updates visible indicator on page
@@ -623,6 +623,24 @@ function setupEventListeners(SG) {
         await solveCurrentPuzzle(false, true);  // Solve from scratch, reset before applying
     });
 
+    // Burger Menu Logic
+    const menuBtn = document.getElementById('btn-menu');
+    const closeMenuBtn = document.getElementById('btn-close-menu');
+    const controlsPanel = document.getElementById('controls');
+
+    if (menuBtn && controlsPanel) {
+        menuBtn.addEventListener('click', () => {
+            controlsPanel.classList.add('active');
+            controlsPanel.classList.remove('hidden-mobile'); // Helper to ensure display: block
+        });
+    }
+
+    if (closeMenuBtn && controlsPanel) {
+        closeMenuBtn.addEventListener('click', () => {
+            controlsPanel.classList.remove('active');
+            controlsPanel.classList.add('hidden-mobile'); // Reset to hidden
+        });
+    }
     // Win modal handlers
     document.getElementById('btn-close-win').addEventListener('click', hideWinModal);
 
