@@ -97,24 +97,18 @@ function calculateBounds(cells) {
 
     const h = BOARD_CONFIG.scale * Math.sqrt(3) / 2;
 
-    // Scale 120
-    // REMOVED side panel width from calculation to force Zoom on the board.
-    // Pieces will live in "overflow" space.
     const boardWidth = (maxVx - minVx + (maxVy - minVy) * 0.5 + 1) * BOARD_CONFIG.scale;
-
-    // Tight width
-    // Tight width
-    const width = BOARD_CONFIG.margin * 2 + boardWidth;
-    // No extra height or centering logic - just fit the board
+    const width = boardWidth + BOARD_CONFIG.margin * 2;
     const boardHeight = (maxVy - minVy + 1) * h;
-    const height = BOARD_CONFIG.margin * 2 + boardHeight;
+    const height = boardHeight + BOARD_CONFIG.margin * 2;
 
     return {
         minVx, maxVx, minVy, maxVy,
         width, height,
+        originalHeight: height, // Store original height for reset
         scale: BOARD_CONFIG.scale,
         marginX: BOARD_CONFIG.margin,
-        marginY: BOARD_CONFIG.margin, // No extra Y padding
+        marginY: BOARD_CONFIG.margin,
     };
 }
 
@@ -184,6 +178,49 @@ class Board {
         this.render();
     }
 
+    // Get the tight pixel bounds of the actual board content
+    getTightBounds() {
+        let minPx = Infinity, maxPx = -Infinity;
+        let minPy = Infinity, maxPy = -Infinity;
+
+        // Iterate all cells and project
+        for (const { pos } of this.cells.values()) {
+            const verts = pos.toVertices();
+            for (const [vx, vy] of verts) {
+                const [px, py] = vertexToPixel(vx, vy, this.bounds);
+                if (px < minPx) minPx = px;
+                if (px > maxPx) maxPx = px;
+                if (py < minPy) minPy = py;
+                if (py > maxPy) maxPy = py;
+            }
+        }
+        return { minPx, maxPx, minPy, maxPy, width: maxPx - minPx, height: maxPy - minPy };
+    }
+
+    // Set ViewBox for Mobile: Crop to tight bounds + extend height for tray
+    setMobileView(trayExtraHeight) {
+        const tight = this.getTightBounds();
+        // Add a little padding
+        const padding = 10;
+        const x = tight.minPx - padding;
+        const y = tight.minPy - padding;
+        const w = tight.width + padding * 2;
+        // Extend height downwards
+        const h = tight.height + padding * 2 + trayExtraHeight;
+
+        this.svg.setAttribute('viewBox', `${x.toFixed(1)} ${y.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}`);
+
+        // Return stats logic can use to place pieces
+        return {
+            x, y, w, h, tight
+        };
+    }
+
+    resetViewBox() {
+        // Original full viewbox
+        this.svg.setAttribute('viewBox', `0 0 ${this.bounds.width.toFixed(0)} ${this.bounds.originalHeight.toFixed(0)}`);
+    }
+
     _setupSVG() {
         this.svg.setAttribute('viewBox', `0 0 ${this.bounds.width.toFixed(0)} ${this.bounds.height.toFixed(0)}`);
 
@@ -250,16 +287,19 @@ class Board {
      */
 
     // Render a piece object at a specific visual coordinate (x, y = centroid position)
+    // Render a piece object at a specific visual coordinate (x, y = centroid position)
     renderPiece(piece, x, y, rotationIndex = 0) {
-        // Remove existing if present
-        if (this.pieceElements.has(piece.name)) {
-            this.pieceElements.get(piece.name).remove();
-        }
+        // Recycle existing group if present, otherwise create new
+        let group = this.pieceElements.get(piece.name);
 
-        const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        group.setAttribute('class', 'piece-group');
-        group.setAttribute('data-piece', piece.name);
-        group.style.cursor = 'grab';
+        if (!group) {
+            group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            group.setAttribute('class', 'piece-group');
+            group.setAttribute('data-piece', piece.name);
+            group.style.cursor = 'grab';
+            this.pieceGroup.appendChild(group);
+            this.pieceElements.set(piece.name, group);
+        }
 
         // Store metadata on the DOM element for easy access
         group.dataset.rotation = rotationIndex;
@@ -271,10 +311,19 @@ class Board {
         // Get piece centroid (in normal coords) - this is where (x,y) will be placed
         const pieceCentroid = piece.getCentroid();
 
-        for (const tri of piece.triangles) {
-            const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-            const verts = tri.toVertices();
+        // Get existing polygons to recycle
+        // Use Array.from to get a stable list as we might append/remove
+        const existingPolygons = Array.from(group.children).filter(el => el.tagName === 'polygon');
 
+        piece.triangles.forEach((tri, i) => {
+            // Recycle or create polygon
+            let polygon = existingPolygons[i];
+            if (!polygon) {
+                polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                group.appendChild(polygon);
+            }
+
+            const verts = tri.toVertices();
             const points = verts.map(([vx, vy]) => {
                 const nx = vx + vy * 0.5;
                 const ny = vy;
@@ -290,12 +339,18 @@ class Board {
             polygon.setAttribute('fill', color);
             polygon.setAttribute('stroke', '#fff');
             polygon.setAttribute('stroke-width', '2');
+        });
 
-            group.appendChild(polygon);
+        // Remove extra polygons if any (though piece triangle count is usually constant)
+        while (group.children.length > piece.triangles.length) {
+            // Be careful not to remove other potential children if we add them later (like debug markers)
+            // For now, group only contains polygons, so lastChild is fine
+            if (group.lastChild.tagName === 'polygon') {
+                group.lastChild.remove();
+            } else {
+                break; // Should not happen based on current logic
+            }
         }
-
-        this.pieceGroup.appendChild(group);
-        this.pieceElements.set(piece.name, group);
 
         this.updatePiecePosition(piece.name, x, y);
         return group;

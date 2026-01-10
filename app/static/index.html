@@ -22,11 +22,7 @@
 </head>
 
 <body>
-    <!-- Debug indicator for mobile testing -->
-    <div id="debug-indicator"
-        style="position:fixed;top:0;left:0;right:0;background:#ff0;color:#000;padding:5px;font-size:12px;z-index:9999;text-align:center;">
-        JS Loading...
-    </div>
+    <!-- Debug indicator removed -->
     <script>
         // Global error handler - catches errors in ALL scripts
         window.onerror = function (msg, url, line, col, error) {
@@ -104,6 +100,7 @@
             <h1>⭐ <span data-i18n="title">Star Genius</span></h1>
             <div id="header-status" data-i18n="selectPiece">Select a piece from the palette</div>
             <div class="header-controls">
+                <button id="btn-menu" class="btn-icon hidden-desktop" aria-label="Menu">☰</button>
                 <span id="player-name" class="player-name" title="Click to edit">👤 Anonymous</span>
                 <div id="best-time" class="best-time hidden">🏆 --:--</div>
                 <div id="timer" class="timer">00:00</div>
@@ -123,7 +120,8 @@
             </div>
 
             <!-- Controls -->
-            <aside id="controls">
+            <aside id="controls" class="hidden-mobile">
+                <button id="btn-close-menu" class="btn-icon-close hidden-desktop" aria-label="Close Menu">✕</button>
                 <h2 data-i18n="newGame">New Game</h2>
                 <div class="control-group">
                     <button id="btn-new-game" class="btn btn-primary" data-i18n="randomGame">🎲 Random Game</button>
