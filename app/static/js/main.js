@@ -4,6 +4,12 @@
  * Initializes the game and wires up UI controls.
  */
 
+// API Configuration - matches api.js pattern
+const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API_BASE_URL = IS_LOCAL
+    ? 'http://localhost:8000'
+    : 'https://sg.ninin.space';
+
 let board;
 let game;
 
@@ -34,7 +40,7 @@ function updatePlayerNameDisplay() {
 // === Leaderboard API ===
 async function fetchBestTime(boardCode) {
     try {
-        const res = await fetch(`/api/scores/${boardCode}`);
+        const res = await fetch(`${API_BASE_URL}/api/scores/${boardCode}`);
         const data = await res.json();
         return data.best_time ? { time: data.best_time, player: data.best_player } : null;
     } catch (e) {
@@ -48,7 +54,7 @@ async function fetchUnsolvedBoards() {
         const params = new URLSearchParams();
         if (playerName) params.set('player_name', playerName);
         params.set('client_id', clientId);
-        const res = await fetch(`/api/boards/unsolved?${params}`);
+        const res = await fetch(`${API_BASE_URL}/api/boards/unsolved?${params}`);
         const data = await res.json();
         return data.boards || [];
     } catch (e) {
@@ -59,7 +65,7 @@ async function fetchUnsolvedBoards() {
 
 async function submitScore(boardCode, timeSeconds, hintsUsed = 0) {
     try {
-        const res = await fetch('/api/scores', {
+        const res = await fetch(`${API_BASE_URL}/api/scores`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -79,7 +85,7 @@ async function submitScore(boardCode, timeSeconds, hintsUsed = 0) {
 
 async function fetchLeaderboard(boardCode) {
     try {
-        const res = await fetch(`/api/scores/${boardCode}`);
+        const res = await fetch(`${API_BASE_URL}/api/scores/${boardCode}`);
         return await res.json();
     } catch (e) {
         console.error('Failed to fetch leaderboard:', e);
@@ -105,7 +111,7 @@ let currentScoreId = null;
 
 async function updateScoreName(scoreId, newName) {
     try {
-        const res = await fetch(`/api/scores/${scoreId}`, {
+        const res = await fetch(`${API_BASE_URL}/api/scores/${scoreId}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
