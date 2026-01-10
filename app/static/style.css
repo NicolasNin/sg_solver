@@ -648,6 +648,9 @@ kbd {
     padding: 16px 24px;
     font-size: 1.2rem;
     font-weight: bold;
+    user-select: none;
+    touch-action: manipulation;
+    /* Prevent double-tap zoom, allow single tap */
 }
 
 /* Mobile Responsive */

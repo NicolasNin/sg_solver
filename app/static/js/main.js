@@ -494,12 +494,16 @@ function setupEventListeners(SG) {
         hideDiceModal();
     });
 
-    // Mobile controls
-    document.getElementById('btn-mobile-rotate').addEventListener('click', () => {
+    // Mobile controls - prevent interference with dragging
+    document.getElementById('btn-mobile-rotate').addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         game.rotate();
     });
 
-    document.getElementById('btn-mobile-flip').addEventListener('click', () => {
+    document.getElementById('btn-mobile-flip').addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         game.flip();
     });
 
