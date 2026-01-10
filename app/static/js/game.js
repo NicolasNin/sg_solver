@@ -25,6 +25,7 @@ class Game {
 
         this.timerInterval = null;
         this.startTime = null;
+        this.alreadySolved = false;
 
         this._setupEventListeners();
     }
@@ -288,6 +289,7 @@ class Game {
         this.selectedPiece = null;
         this.currentOrientation = 0;
         this.blockers = blockerIds;
+        this.alreadySolved = false;
 
         // Place blockers
         for (const id of blockerIds) {
@@ -836,6 +838,9 @@ class Game {
     }
 
     _onWin() {
+        if (this.alreadySolved) return;
+        this.alreadySolved = true;
+
         this._stopTimer();
         const solveTime = (Date.now() - this.startTime) / 1000;
         this._setStatus('🎉 Puzzle Solved! 🎉');

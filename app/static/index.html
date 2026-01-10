@@ -115,8 +115,8 @@
 
             <!-- Mobile Controls (only visible on mobile) -->
             <div id="mobile-controls" class="mobile-controls">
-                <button id="btn-mobile-rotate" class="btn btn-mobile">↻ Rotate</button>
-                <button id="btn-mobile-flip" class="btn btn-mobile">↔ Flip</button>
+                <button id="btn-mobile-rotate" class="btn btn-mobile" data-i18n="rotateMobile">↻ Rotate</button>
+                <button id="btn-mobile-flip" class="btn btn-mobile" data-i18n="flipMobile">↔ Flip</button>
             </div>
 
             <!-- Controls -->
@@ -130,10 +130,8 @@
                 </div>
                 <h2 data-i18n="controls">Controls</h2>
                 <div class="control-group">
-                    <button id="btn-rotate" class="btn" data-i18n="rotate">↻ Rotate (R)</button>
-                    <button id="btn-flip" class="btn" data-i18n="flip">↔ Flip (F)</button>
-                </div>
-                <div class="control-group">
+                    <button id="btn-show-leaderboard" class="btn btn-secondary" data-i18n="leaderboard">🏆
+                        Leaderboard</button>
                     <button id="btn-reset" class="btn btn-warning" data-i18n="resetBoard">Reset Board</button>
                 </div>
                 <div class="control-group">
@@ -159,6 +157,19 @@
                 </div>
             </aside>
         </main>
+    </div>
+
+    <!-- Leaderboard Modal -->
+    <div id="leaderboard-modal" class="modal hidden">
+        <div class="modal-content win-modal-content">
+            <h2>🏆 <span data-i18n="leaderboard">Leaderboard</span></h2>
+            <div id="leaderboard-table-content" class="win-leaderboard">
+                <!-- Populated dynamically -->
+            </div>
+            <div class="win-buttons">
+                <button id="btn-close-leaderboard" class="btn btn-secondary" data-i18n="close">Close</button>
+            </div>
+        </div>
     </div>
 
     <!-- Win Modal -->
