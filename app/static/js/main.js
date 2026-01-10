@@ -7,6 +7,191 @@
 let board;
 let game;
 
+// === Player Identity ===
+// Device ID - generated once and persisted
+const clientId = localStorage.getItem('sg-client-id') || (() => {
+    const id = crypto.randomUUID();
+    localStorage.setItem('sg-client-id', id);
+    return id;
+})();
+
+// Player name - editable and persisted
+let playerName = localStorage.getItem('sg-player-name') || '';
+
+function setPlayerName(name) {
+    playerName = name;
+    localStorage.setItem('sg-player-name', name);
+    updatePlayerNameDisplay();
+}
+
+function updatePlayerNameDisplay() {
+    const el = document.getElementById('player-name');
+    if (el) {
+        el.textContent = playerName || 'Anonymous';
+    }
+}
+
+// === Leaderboard API ===
+async function fetchBestTime(boardCode) {
+    try {
+        const res = await fetch(`/api/scores/${boardCode}`);
+        const data = await res.json();
+        return data.best_time ? { time: data.best_time, player: data.best_player } : null;
+    } catch (e) {
+        console.error('Failed to fetch best time:', e);
+        return null;
+    }
+}
+
+async function fetchUnsolvedBoards() {
+    try {
+        const params = new URLSearchParams();
+        if (playerName) params.set('player_name', playerName);
+        params.set('client_id', clientId);
+        const res = await fetch(`/api/boards/unsolved?${params}`);
+        const data = await res.json();
+        return data.boards || [];
+    } catch (e) {
+        console.error('Failed to fetch unsolved boards:', e);
+        return [];
+    }
+}
+
+async function submitScore(boardCode, timeSeconds, hintsUsed = 0) {
+    try {
+        const res = await fetch('/api/scores', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                board_code: boardCode,
+                player_name: playerName || 'Anonymous',
+                time_seconds: timeSeconds,
+                hints_used: hintsUsed,
+                client_id: clientId
+            })
+        });
+        return await res.json();
+    } catch (e) {
+        console.error('Failed to submit score:', e);
+        return null;
+    }
+}
+
+async function fetchLeaderboard(boardCode) {
+    try {
+        const res = await fetch(`/api/scores/${boardCode}`);
+        return await res.json();
+    } catch (e) {
+        console.error('Failed to fetch leaderboard:', e);
+        return null;
+    }
+}
+
+// === Win Modal ===
+function formatTime(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function getCurrentBoardCode() {
+    // Get from URL or encode current blockers
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('board') || 'random';
+}
+
+// Track current score for name updates
+let currentScoreId = null;
+
+async function updateScoreName(scoreId, newName) {
+    try {
+        const res = await fetch(`/api/scores/${scoreId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                player_name: newName,
+                client_id: clientId
+            })
+        });
+        return res.ok;
+    } catch (e) {
+        console.error('Failed to update score name:', e);
+        return false;
+    }
+}
+
+async function showWinModal(solveTime, hintsUsed) {
+    const boardCode = getCurrentBoardCode();
+    const modal = document.getElementById('win-modal');
+
+    // Display solve time
+    document.getElementById('win-time').textContent = formatTime(solveTime);
+
+    // Set name input value
+    const nameInput = document.getElementById('win-name-input');
+    nameInput.value = playerName || '';
+
+    // Submit score and get rank
+    const scoreResult = await submitScore(boardCode, solveTime, hintsUsed);
+    if (scoreResult) {
+        document.getElementById('win-rank').textContent = `#${scoreResult.rank}`;
+        currentScoreId = scoreResult.score_id;  // Store for name updates
+    }
+
+    // Fetch and display leaderboard
+    const leaderboardData = await fetchLeaderboard(boardCode);
+    populateLeaderboard(leaderboardData, solveTime);
+
+    // Show modal
+    modal.classList.remove('hidden');
+}
+
+function populateLeaderboard(data, currentTime) {
+    const container = document.getElementById('win-leaderboard');
+    if (!data || !data.leaderboard || data.leaderboard.length === 0) {
+        container.innerHTML = '<p class="no-scores">No other scores yet!</p>';
+        return;
+    }
+
+    let html = `<table>
+        <thead><tr><th>#</th><th>Player</th><th>Time</th></tr></thead>
+        <tbody>`;
+
+    for (const entry of data.leaderboard) {
+        const isCurrent = Math.abs(entry.time - currentTime) < 0.1;
+        const rankClass = entry.rank <= 3 ? `rank-${entry.rank}` : '';
+        html += `<tr class="${isCurrent ? 'current-player' : ''} ${rankClass}">
+            <td>${entry.rank}</td>
+            <td>${entry.player}</td>
+            <td>${formatTime(entry.time)}</td>
+        </tr>`;
+    }
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function hideWinModal() {
+    document.getElementById('win-modal').classList.add('hidden');
+}
+
+async function updateBestTimeDisplay(boardCode) {
+    const bestTimeEl = document.getElementById('best-time');
+    const best = await fetchBestTime(boardCode);
+
+    if (best && best.time) {
+        bestTimeEl.textContent = `🏆 ${formatTime(best.time)} (${best.player})`;
+        bestTimeEl.classList.remove('hidden');
+    } else {
+        bestTimeEl.classList.add('hidden');
+    }
+}
+
+// Game win callback
+function handleGameWin(solveTime, hintsUsed) {
+    showWinModal(solveTime, hintsUsed);
+}
+
 // === URL-based Board Sharing ===
 // Encode 7 blockers (values 1-48) to a hex string using base-48
 function encodeBlockers(blockers) {
@@ -18,15 +203,26 @@ function encodeBlockers(blockers) {
     return value.toString(16);
 }
 
-// Decode hex string back to 7 blockers
+// Decode hex string back to 7 blockers (returns null if invalid)
 function decodeBlockers(hex) {
-    let value = BigInt('0x' + hex);
-    const blockers = [];
-    for (let i = 0; i < 7; i++) {
-        blockers.push(Number(value % 48n) + 1);  // Convert back to 1-indexed
-        value = value / 48n;
+    try {
+        // Validate hex string format
+        if (!hex || !/^[0-9a-fA-F]+$/.test(hex)) {
+            return null;
+        }
+        let value = BigInt('0x' + hex);
+        const blockers = [];
+        for (let i = 0; i < 7; i++) {
+            const blocker = Number(value % 48n) + 1;  // Convert back to 1-indexed
+            if (blocker < 1 || blocker > 48) return null;
+            blockers.push(blocker);
+            value = value / 48n;
+        }
+        return blockers;
+    } catch (e) {
+        console.warn('Invalid board code:', hex, e);
+        return null;
     }
-    return blockers;
 }
 
 // Update URL with current board config
@@ -52,13 +248,102 @@ function getBlockersFromURL() {
     return null;
 }
 
+// === Theme Switching ===
+const THEMES = {
+    dark: {
+        css: 'style.css',
+        svgBg: '#0d1117',
+        cellFill: '#1b2856',
+        cellStroke: '#1a1a2e',
+        blockerColor: '#90a3ffff'
+    },
+    pastel: {
+        css: 'style-pastel.css',
+        svgBg: 'transparent',
+        cellFill: '#a8d4f0',
+        cellStroke: '#7fb8dc',
+        blockerColor: '#FFFFFF',
+        bgImage: 'bg_pastel.jpg'
+    }
+};
+
+// Expose THEMES on StarGenius namespace for board.js to use
+if (window.StarGenius) {
+    window.StarGenius.THEMES = THEMES;
+}
+// Preload theme background images
+function preloadThemeImages() {
+    Object.values(THEMES).forEach(theme => {
+        if (theme.bgImage) {
+            const img = new Image();
+            img.src = '/static/' + theme.bgImage;
+        }
+    });
+}
+preloadThemeImages();
+
+function setTheme(themeName) {
+    const theme = THEMES[themeName];
+    if (!theme) return;
+
+    // Set data-theme attribute on html element for CSS variable switching
+    document.documentElement.setAttribute('data-theme', themeName === 'dark' ? '' : themeName);
+
+    // Also set on body for some CSS rules
+    document.body.setAttribute('data-theme', themeName === 'dark' ? '' : themeName);
+
+    // Update SVG background if board exists
+    const svgBg = document.querySelector('#board-container svg rect:first-child');
+    if (svgBg) {
+        svgBg.setAttribute('fill', theme.svgBg);
+    }
+
+    // Update board cell colors - only update empty cells (using data-state attribute)
+    const cells = document.querySelectorAll('#board-container svg polygon[data-cell-id]');
+    cells.forEach(cell => {
+        const state = cell.getAttribute('data-state');
+        if (state === 'empty') {
+            cell.setAttribute('fill', theme.cellFill);
+            cell.setAttribute('stroke', theme.cellStroke);
+        } else if (state === 'blocker') {
+            cell.setAttribute('fill', theme.blockerColor);
+        }
+    });
+
+    // Save preference
+    localStorage.setItem('sg-theme', themeName);
+
+    // Update dropdown
+    const select = document.getElementById('theme-select');
+    if (select) select.value = themeName;
+}
+
+function loadSavedTheme() {
+    const saved = localStorage.getItem('sg-theme') || 'dark';
+    setTheme(saved);
+}
+
 // Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     // Access StarGenius namespace after all scripts loaded
     const SG = window.StarGenius;
 
+    // Initialize translations
+    await i18n.init();
+
     initializeGame(SG);
     setupEventListeners(SG);
+
+    // Load saved theme
+    loadSavedTheme();
+
+    // Theme switcher event
+    const themeSelect = document.getElementById('theme-select');
+    if (themeSelect) {
+        themeSelect.addEventListener('change', (e) => {
+            setTheme(e.target.value);
+        });
+    }
 
     // Check for board config in URL
     const urlBlockers = getBlockersFromURL();
@@ -74,8 +359,14 @@ function initializeGame(SG) {
     board = new SG.Board(svgElement);
     game = new SG.Game(board);
 
+    // Connect win callback
+    game.onWinCallback = handleGameWin;
+
     // Create piece palette
     createPalette(SG);
+
+    // Update player name display
+    updatePlayerNameDisplay();
 }
 
 function createPalette(SG) {
@@ -153,7 +444,20 @@ function createPieceSVG(piece, color) {
 
 function setupEventListeners(SG) {
     // Start modal buttons
-    document.getElementById('btn-random').addEventListener('click', () => {
+    document.getElementById('btn-random').addEventListener('click', async () => {
+        // Try unsolved boards first, then fall back to random
+        const unsolved = await fetchUnsolvedBoards();
+
+        // Try to find a valid board
+        for (const board of unsolved) {
+            const blockers = decodeBlockers(board.board_code);
+            if (blockers) {
+                startNewGame(blockers);
+                return;
+            }
+        }
+
+        // No valid boards found - generate truly random game
         const blockers = SG.rollDice();
         startNewGame(blockers);
     });
@@ -214,6 +518,54 @@ function setupEventListeners(SG) {
 
     document.getElementById('btn-solve-full').addEventListener('click', async () => {
         await solveCurrentPuzzle(false, true);  // Solve from scratch, reset before applying
+    });
+
+    // Win modal handlers
+    document.getElementById('btn-close-win').addEventListener('click', hideWinModal);
+
+    document.getElementById('btn-next-game').addEventListener('click', async () => {
+        hideWinModal();
+        // Try to get an unsolved board, otherwise random
+        const unsolved = await fetchUnsolvedBoards();
+
+        // Try to find a valid board
+        for (const board of unsolved) {
+            const blockers = decodeBlockers(board.board_code);
+            if (blockers) {
+                startNewGame(blockers);
+                return;
+            }
+        }
+
+        // No valid boards - truly random game
+        const blockers = SG.rollDice();
+        startNewGame(blockers);
+    });
+
+    // Save name when input changes in win modal - also update the submitted score
+    document.getElementById('win-name-input').addEventListener('change', async (e) => {
+        const newName = e.target.value;
+        setPlayerName(newName);
+
+        // Update the recently submitted score with new name
+        if (currentScoreId) {
+            await updateScoreName(currentScoreId, newName);
+            // Refresh leaderboard to show updated name
+            const boardCode = getCurrentBoardCode();
+            const leaderboardData = await fetchLeaderboard(boardCode);
+            // Find current time from displayed time
+            const timeText = document.getElementById('win-time').textContent;
+            const [mins, secs] = timeText.split(':').map(Number);
+            populateLeaderboard(leaderboardData, mins * 60 + secs);
+        }
+    });
+
+    // Player name click to edit
+    document.getElementById('player-name').addEventListener('click', () => {
+        const newName = prompt('Enter your name:', playerName);
+        if (newName !== null) {
+            setPlayerName(newName);
+        }
     });
 
     // DEBUG: Listen for test-solve event from game.js
@@ -329,6 +681,10 @@ function startNewGame(blockers) {
 
     // Update URL for sharing
     updateURLWithBlockers(blockers);
+
+    // Display best time for this board
+    const boardCode = encodeBlockers(blockers);
+    updateBestTimeDisplay(boardCode);
 }
 
 async function loadFromPhoto(file) {

@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="darkreader-lock">
     <title>Star Genius</title>
     <link rel="stylesheet" href="style.css">
     <style>
@@ -24,12 +25,12 @@
     <!-- Start Modal -->
     <div id="start-modal" class="modal">
         <div class="modal-content">
-            <h1>⭐ Star Genius</h1>
-            <p>Choose how to start:</p>
+            <h1>⭐ <span data-i18n="title">Star Genius</span></h1>
+            <p data-i18n="newGame">Choose how to start:</p>
             <div class="modal-buttons">
-                <button id="btn-random" class="btn btn-primary">🎲 Random Game</button>
-                <button id="btn-choose-dice" class="btn btn-secondary">🎯 Choose Dice</button>
-                <button id="btn-photo" class="btn btn-secondary">📷 Load from Photo</button>
+                <button id="btn-random" class="btn btn-primary" data-i18n="randomGame">🎲 Random Game</button>
+                <button id="btn-choose-dice" class="btn btn-secondary" data-i18n="chooseDice">🎯 Choose Dice</button>
+                <button id="btn-photo" class="btn btn-secondary" data-i18n="loadFromPhoto">📷 Load from Photo</button>
             </div>
             <input type="file" id="photo-input" accept="image/*" style="display: none;">
         </div>
@@ -38,43 +39,43 @@
     <!-- Dice Selection Modal -->
     <div id="dice-modal" class="modal hidden">
         <div class="modal-content dice-modal-content">
-            <h2>🎯 Choose Your Blockers</h2>
-            <p class="dice-instructions">Click one value per die to select blockers</p>
+            <h2 data-i18n="chooseBlockers">🎯 Choose Your Blockers</h2>
+            <p class="dice-instructions" data-i18n="clickToSelect">Click one value per die to select blockers</p>
             <table id="dice-table">
                 <tbody>
                     <tr data-die="0">
-                        <td class="die-label">Die 1</td>
+                        <td class="die-label">Dé 1</td>
                         <td class="die-options"></td>
                     </tr>
                     <tr data-die="1">
-                        <td class="die-label">Die 2</td>
+                        <td class="die-label">Dé 2</td>
                         <td class="die-options"></td>
                     </tr>
                     <tr data-die="2">
-                        <td class="die-label">Die 3</td>
+                        <td class="die-label">Dé 3</td>
                         <td class="die-options"></td>
                     </tr>
                     <tr data-die="3">
-                        <td class="die-label">Die 4</td>
+                        <td class="die-label">Dé 4</td>
                         <td class="die-options"></td>
                     </tr>
                     <tr data-die="4">
-                        <td class="die-label">Die 5</td>
+                        <td class="die-label">Dé 5</td>
                         <td class="die-options"></td>
                     </tr>
                     <tr data-die="5">
-                        <td class="die-label">Die 6</td>
+                        <td class="die-label">Dé 6</td>
                         <td class="die-options"></td>
                     </tr>
                     <tr data-die="6">
-                        <td class="die-label">Die 7</td>
+                        <td class="die-label">Dé 7</td>
                         <td class="die-options"></td>
                     </tr>
                 </tbody>
             </table>
             <div class="dice-modal-buttons">
-                <button id="btn-start-dice" class="btn btn-primary" disabled>Start Game</button>
-                <button id="btn-cancel-dice" class="btn btn-secondary">Cancel</button>
+                <button id="btn-start-dice" class="btn btn-primary" disabled data-i18n="startGame">Start Game</button>
+                <button id="btn-cancel-dice" class="btn btn-secondary" data-i18n="cancel">Cancel</button>
             </div>
         </div>
     </div>
@@ -82,9 +83,19 @@
     <!-- Main Game Area -->
     <div id="game-container" class="hidden">
         <header>
-            <h1>⭐ Star Genius</h1>
-            <div id="header-status">Select a piece from the palette</div>
+            <h1>⭐ <span data-i18n="title">Star Genius</span></h1>
+            <div id="header-status" data-i18n="selectPiece">Select a piece from the palette</div>
             <div class="header-controls">
+                <span id="player-name" class="player-name" title="Click to edit">👤 Anonymous</span>
+                <div id="best-time" class="best-time hidden">🏆 --:--</div>
+                <select id="lang-select" title="Language">
+                    <option value="en">🇬🇧 EN</option>
+                    <option value="fr">🇫🇷 FR</option>
+                </select>
+                <select id="theme-select" title="Choose theme">
+                    <option value="dark" data-i18n="dark">🌙 Dark</option>
+                    <option value="pastel" data-i18n="pastel">🎨 Pastel</option>
+                </select>
                 <div id="timer" class="timer">00:00</div>
             </div>
         </header>
@@ -92,7 +103,7 @@
         <main>
             <!-- Piece Palette -->
             <aside id="palette">
-                <h2>Pieces</h2>
+                <h2 data-i18n="pieces">Pieces</h2>
                 <div id="piece-list"></div>
             </aside>
 
@@ -103,38 +114,61 @@
 
             <!-- Controls -->
             <aside id="controls">
-                <h2>New Game</h2>
+                <h2 data-i18n="newGame">New Game</h2>
                 <div class="control-group">
-                    <button id="btn-new-game" class="btn btn-primary">🎲 Random Game</button>
-                    <button id="btn-choose-dice-game" class="btn btn-secondary">🎯 Choose Dice</button>
+                    <button id="btn-new-game" class="btn btn-primary" data-i18n="randomGame">🎲 Random Game</button>
+                    <button id="btn-choose-dice-game" class="btn btn-secondary" data-i18n="chooseDice">🎯 Choose
+                        Dice</button>
                 </div>
-                <h2>Controls</h2>
+                <h2 data-i18n="controls">Controls</h2>
                 <div class="control-group">
-                    <button id="btn-rotate" class="btn">↻ Rotate (R)</button>
-                    <button id="btn-flip" class="btn">↔ Flip (F)</button>
-                </div>
-                <div class="control-group">
-                    <button id="btn-reset" class="btn btn-warning">Reset Board</button>
+                    <button id="btn-rotate" class="btn" data-i18n="rotate">↻ Rotate (R)</button>
+                    <button id="btn-flip" class="btn" data-i18n="flip">↔ Flip (F)</button>
                 </div>
                 <div class="control-group">
-                    <button id="btn-solve" class="btn btn-primary">💡 Help Me!</button>
-                    <button id="btn-solve-full" class="btn btn-secondary">🔄 Full Solve</button>
+                    <button id="btn-reset" class="btn btn-warning" data-i18n="resetBoard">Reset Board</button>
+                </div>
+                <div class="control-group">
+                    <button id="btn-solve" class="btn btn-primary" data-i18n="helpMe">💡 Help Me!</button>
+                    <button id="btn-solve-full" class="btn btn-secondary" data-i18n="fullSolve">🔄 Full Solve</button>
                 </div>
                 <div id="controls-info">
-                    <p><strong>Keyboard:</strong></p>
+                    <p><strong data-i18n="keyboard">Keyboard:</strong></p>
                     <ul>
-                        <li><kbd>R</kbd> / Scroll Rotate</li>
-                        <li><kbd>F</kbd> / Right-click Flip</li>
+                        <li><kbd>R</kbd> <span data-i18n="rotateKey">/ Scroll Rotate</span></li>
+                        <li><kbd>F</kbd> <span data-i18n="flipKey">/ Right-click Flip</span></li>
                     </ul>
                 </div>
             </aside>
         </main>
     </div>
 
+    <!-- Win Modal -->
+    <div id="win-modal" class="modal hidden">
+        <div class="modal-content win-modal-content">
+            <h2>🎉 <span data-i18n="solved">Solved!</span></h2>
+            <div class="win-stats">
+                <p class="win-time">Your time: <span id="win-time">00:00</span></p>
+                <p class="win-rank">Rank: <span id="win-rank">#1</span></p>
+            </div>
+            <div class="win-name-section">
+                <label for="win-name-input">Your name:</label>
+                <input type="text" id="win-name-input" placeholder="Anonymous" maxlength="20">
+            </div>
+            <div id="win-leaderboard" class="win-leaderboard">
+                <!-- Populated dynamically -->
+            </div>
+            <div class="win-buttons">
+                <button id="btn-next-game" class="btn btn-primary">🎲 Next Puzzle</button>
+                <button id="btn-close-win" class="btn btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Loading Overlay -->
     <div id="loading" class="hidden">
         <div class="spinner"></div>
-        <p>Solving puzzle...</p>
+        <p data-i18n="solving">Solving puzzle...</p>
     </div>
 
     <!-- Scripts -->
@@ -142,6 +176,7 @@
     <script src="js/board.js"></script>
     <script src="js/game.js"></script>
     <script src="js/api.js"></script>
+    <script src="js/i18n.js"></script>
     <script src="js/main.js"></script>
 </body>
 

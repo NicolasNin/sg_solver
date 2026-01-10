@@ -7,9 +7,10 @@ models/
 *.py[cod]
 *$py.class
 *:Zone.Identifier
+scores.db
 # C extensions
 *.so
-
+roboflow_api.py
 # Distribution / packaging
 .Python
 build/
