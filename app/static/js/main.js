@@ -593,40 +593,17 @@ function setupEventListeners(SG) {
         }
     });
 
-    // Game controls
-    document.getElementById('btn-new-game').addEventListener('click', () => {
-        const blockers = SG.rollDice();
-        startNewGame(blockers);
-    });
-
-    document.getElementById('btn-choose-dice-game').addEventListener('click', () => {
-        showDiceModalFromGame(SG);
-    });
-
-    document.getElementById('btn-rotate').addEventListener('click', () => {
-        game.rotate();
-    });
-
-    document.getElementById('btn-flip').addEventListener('click', () => {
-        game.flip();
-    });
-
-    document.getElementById('btn-reset').addEventListener('click', () => {
-        game.resetToBlockers();
-    });
-
-    document.getElementById('btn-solve').addEventListener('click', async () => {
-        await solveCurrentPuzzle(true);  // Solve from current position
-    });
-
-    document.getElementById('btn-solve-full').addEventListener('click', async () => {
-        await solveCurrentPuzzle(false, true);  // Solve from scratch, reset before applying
-    });
-
     // Burger Menu Logic
     const menuBtn = document.getElementById('btn-menu');
     const closeMenuBtn = document.getElementById('btn-close-menu');
     const controlsPanel = document.getElementById('controls');
+
+    function closeMobileMenu() {
+        if (controlsPanel && controlsPanel.classList.contains('active')) {
+            controlsPanel.classList.remove('active');
+            controlsPanel.classList.add('hidden-mobile');
+        }
+    }
 
     if (menuBtn && controlsPanel) {
         menuBtn.addEventListener('click', () => {
@@ -637,10 +614,80 @@ function setupEventListeners(SG) {
 
     if (closeMenuBtn && controlsPanel) {
         closeMenuBtn.addEventListener('click', () => {
-            controlsPanel.classList.remove('active');
-            controlsPanel.classList.add('hidden-mobile'); // Reset to hidden
+            closeMobileMenu();
         });
     }
+
+    // Helper wrapper for button actions that should close the menu
+    function withMenuAutoClose(fn) {
+        return async (...args) => {
+            closeMobileMenu();
+            if (fn) await fn(...args);
+        };
+    }
+
+    // Game controls with auto-close
+    document.getElementById('btn-new-game').addEventListener('click', withMenuAutoClose(() => {
+        const blockers = SG.rollDice();
+        startNewGame(blockers);
+    }));
+
+    document.getElementById('btn-choose-dice-game').addEventListener('click', withMenuAutoClose(() => {
+        showDiceModalFromGame(SG);
+    }));
+
+    document.getElementById('btn-reset').addEventListener('click', withMenuAutoClose(() => {
+        game.resetToBlockers();
+    }));
+
+    document.getElementById('btn-solve').addEventListener('click', withMenuAutoClose(async () => {
+        await solveCurrentPuzzle(true);  // Solve from current position
+    }));
+
+    document.getElementById('btn-solve-full').addEventListener('click', withMenuAutoClose(async () => {
+        await solveCurrentPuzzle(false, true);  // Solve from scratch, reset before applying
+    }));
+    // Leaderboard Modal Logic
+    function showLeaderboardModal() {
+        // Reuse existing Win Modal logic to populate table
+        const boardCode = getCurrentBoardCode();
+        fetchLeaderboard(boardCode).then(data => {
+            const container = document.getElementById('leaderboard-table-content');
+            // Reuse populateLeaderboard but target different container
+            // We need to modify populateLeaderboard to accept container or create a new function
+            // Let's create a helper since populateLeaderboard targets 'win-leaderboard' ID specifically
+            if (!data || !data.leaderboard || data.leaderboard.length === 0) {
+                container.innerHTML = '<p class="no-scores">No scores yet!</p>';
+                return;
+            }
+
+            let html = `<table>
+                <thead><tr><th>#</th><th>Player</th><th>Time</th></tr></thead>
+                <tbody>`;
+
+            for (const entry of data.leaderboard) {
+                const rankClass = entry.rank <= 3 ? `rank-${entry.rank}` : '';
+                html += `<tr class="${rankClass}">
+                    <td>${entry.rank}</td>
+                    <td>${entry.player}</td>
+                    <td>${formatTime(entry.time)}</td>
+                </tr>`;
+            }
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        });
+        document.getElementById('leaderboard-modal').classList.remove('hidden');
+    }
+
+    document.getElementById('btn-show-leaderboard').addEventListener('click', withMenuAutoClose(() => {
+        showLeaderboardModal();
+    }));
+
+    document.getElementById('btn-close-leaderboard').addEventListener('click', () => {
+        document.getElementById('leaderboard-modal').classList.add('hidden');
+    });
+
     // Win modal handlers
     document.getElementById('btn-close-win').addEventListener('click', hideWinModal);
 
