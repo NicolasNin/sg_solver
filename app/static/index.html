@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="darkreader-lock">
     <title>Star Genius</title>
     <link rel="stylesheet" href="style.css">
@@ -97,6 +97,12 @@
             <section id="board-container">
                 <svg id="board-svg" viewBox="0 0 500 500"></svg>
             </section>
+
+            <!-- Mobile Controls (only visible on mobile) -->
+            <div id="mobile-controls" class="mobile-controls">
+                <button id="btn-mobile-rotate" class="btn btn-mobile">↻ Rotate</button>
+                <button id="btn-mobile-flip" class="btn btn-mobile">↔ Flip</button>
+            </div>
 
             <!-- Controls -->
             <aside id="controls">

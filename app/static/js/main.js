@@ -494,6 +494,15 @@ function setupEventListeners(SG) {
         hideDiceModal();
     });
 
+    // Mobile controls
+    document.getElementById('btn-mobile-rotate').addEventListener('click', () => {
+        game.rotate();
+    });
+
+    document.getElementById('btn-mobile-flip').addEventListener('click', () => {
+        game.flip();
+    });
+
     // Game controls
     document.getElementById('btn-new-game').addEventListener('click', () => {
         const blockers = SG.rollDice();
