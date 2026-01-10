@@ -368,6 +368,24 @@ kbd {
     pointer-events: none;
 }
 
+/* Selected piece highlight - pulsing glow */
+.piece-selected {
+    filter: drop-shadow(0 0 8px rgba(88, 166, 255, 0.8))
+            drop-shadow(0 0 16px rgba(88, 166, 255, 0.5));
+    animation: piece-pulse 1s ease-in-out infinite;
+}
+
+@keyframes piece-pulse {
+    0%, 100% {
+        filter: drop-shadow(0 0 8px rgba(88, 166, 255, 0.8))
+                drop-shadow(0 0 16px rgba(88, 166, 255, 0.5));
+    }
+    50% {
+        filter: drop-shadow(0 0 12px rgba(88, 166, 255, 1))
+                drop-shadow(0 0 24px rgba(88, 166, 255, 0.7));
+    }
+}
+
 /* Loading Overlay */
 #loading {
     position: fixed;

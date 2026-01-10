@@ -22,6 +22,24 @@
 </head>
 
 <body>
+    <!-- Debug indicator for mobile testing -->
+    <div id="debug-indicator"
+        style="position:fixed;top:0;left:0;right:0;background:#ff0;color:#000;padding:5px;font-size:12px;z-index:9999;text-align:center;">
+        JS Loading...
+    </div>
+    <script>
+        // Global error handler - catches errors in ALL scripts
+        window.onerror = function (msg, url, line, col, error) {
+            var el = document.getElementById('debug-indicator');
+            if (el) {
+                el.style.background = '#f00';
+                el.style.color = '#fff';
+                el.textContent = 'JS ERROR: ' + msg + ' (line ' + line + ')';
+            }
+            return false;
+        };
+    </script>
+
     <!-- Start Modal -->
     <div id="start-modal" class="modal">
         <div class="modal-content">
