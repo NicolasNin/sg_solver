@@ -9,7 +9,7 @@ const i18n = {
     async init() {
         // Load translations
         try {
-            const response = await fetch('/translations.json');
+            const response = await fetch('./translations.json');
             this.translations = await response.json();
         } catch (e) {
             console.error('Failed to load translations:', e);
