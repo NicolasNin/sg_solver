@@ -7,17 +7,40 @@
 // API Configuration - get base URL (api.js is loaded first)
 function getApiBase() {
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    return isLocal ? 'http://localhost:8000' : 'https://sg.ninin.space';
+    return isLocal ? 'http://localhost:8000' : 'http://192.168.1.11:8000';
 }
+// for test I remove   'https://sg.ninin.space';
+
 const API_BASE_URL = getApiBase();
+
+// Debug helper - updates visible indicator on page
+function debugLog(msg) {
+    console.log('[DEBUG]', msg);
+    const el = document.getElementById('debug-indicator');
+    if (el) el.textContent = msg;
+}
 
 let board;
 let game;
 
 // === Player Identity ===
 // Device ID - generated once and persisted
+// Note: crypto.randomUUID() requires HTTPS, so we use a fallback for HTTP
+function generateUUID() {
+    // Try native first (HTTPS only)
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    // Fallback for HTTP
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
 const clientId = localStorage.getItem('sg-client-id') || (() => {
-    const id = crypto.randomUUID();
+    const id = generateUUID();
     localStorage.setItem('sg-client-id', id);
     return id;
 })();
@@ -332,31 +355,47 @@ function loadSavedTheme() {
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', async () => {
-    // Access StarGenius namespace after all scripts loaded
-    const SG = window.StarGenius;
+    debugLog('DOMContentLoaded fired');
 
-    // Initialize translations
-    await i18n.init();
+    try {
+        // Access StarGenius namespace after all scripts loaded
+        const SG = window.StarGenius;
 
-    initializeGame(SG);
-    setupEventListeners(SG);
+        if (!SG) {
+            throw new Error('StarGenius namespace not found');
+        }
+        debugLog('SG namespace OK');
 
-    // Load saved theme
-    loadSavedTheme();
+        // Initialize translations
+        await i18n.init();
+        debugLog('i18n OK');
 
-    // Theme switcher event
-    const themeSelect = document.getElementById('theme-select');
-    if (themeSelect) {
-        themeSelect.addEventListener('change', (e) => {
-            setTheme(e.target.value);
-        });
-    }
+        initializeGame(SG);
+        debugLog('Game OK');
 
-    // Check for board config in URL
-    const urlBlockers = getBlockersFromURL();
-    if (urlBlockers && urlBlockers.length === 7) {
-        console.log('Starting game from URL:', urlBlockers);
-        startNewGame(urlBlockers);
+        setupEventListeners(SG);
+        debugLog('Ready! API: ' + API_BASE_URL);
+
+        // Load saved theme
+        loadSavedTheme();
+
+        // Theme switcher event
+        const themeSelect = document.getElementById('theme-select');
+        if (themeSelect) {
+            themeSelect.addEventListener('change', (e) => {
+                setTheme(e.target.value);
+            });
+        }
+
+        // Check for board config in URL
+        const urlBlockers = getBlockersFromURL();
+        if (urlBlockers && urlBlockers.length === 7) {
+            debugLog('Starting from URL...');
+            startNewGame(urlBlockers);
+        }
+    } catch (e) {
+        debugLog('ERROR: ' + e.message);
+        console.error('[main.js] Initialization error:', e);
     }
 });
 
@@ -449,19 +488,30 @@ function createPieceSVG(piece, color) {
 function setupEventListeners(SG) {
     // Start modal buttons
     document.getElementById('btn-random').addEventListener('click', async () => {
-        // Try unsolved boards first, then fall back to random
-        const unsolved = await fetchUnsolvedBoards();
+        debugLog('Random clicked...');
 
-        // Try to find a valid board
-        for (const board of unsolved) {
-            const blockers = decodeBlockers(board.board_code);
-            if (blockers) {
-                startNewGame(blockers);
-                return;
+        try {
+            // Try unsolved boards first, then fall back to random
+            debugLog('Fetching boards...');
+            const unsolved = await fetchUnsolvedBoards();
+            debugLog('Got ' + unsolved.length + ' boards');
+
+            // Try to find a valid board
+            for (const board of unsolved) {
+                const blockers = decodeBlockers(board.board_code);
+                if (blockers) {
+                    debugLog('Starting game...');
+                    startNewGame(blockers);
+                    return;
+                }
             }
+        } catch (e) {
+            debugLog('API Error: ' + e.message);
+            console.error('[btn-random] Error:', e);
         }
 
-        // No valid boards found - generate truly random game
+        // No valid boards found or API failed - generate truly random game
+        debugLog('Using random dice...');
         const blockers = SG.rollDice();
         startNewGame(blockers);
     });
@@ -495,16 +545,52 @@ function setupEventListeners(SG) {
     });
 
     // Mobile controls - prevent interference with dragging
-    document.getElementById('btn-mobile-rotate').addEventListener('click', (e) => {
+    // Using both touchstart (for responsiveness) and click (for fallback)
+    const btnRotate = document.getElementById('btn-mobile-rotate');
+    const btnFlip = document.getElementById('btn-mobile-flip');
+
+    // Rotate button - handle all touch events to prevent interference
+    btnRotate.addEventListener('touchstart', (e) => {
         e.preventDefault();
         e.stopPropagation();
+        debugLog('Rotate touchstart');
         game.rotate();
+    }, { passive: false });
+
+    btnRotate.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        debugLog('Rotate touchend (blocked)');
+    }, { passive: false });
+
+    btnRotate.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.pointerType !== 'touch') {
+            game.rotate();
+        }
     });
 
-    document.getElementById('btn-mobile-flip').addEventListener('click', (e) => {
+    // Flip button - handle all touch events to prevent interference
+    btnFlip.addEventListener('touchstart', (e) => {
         e.preventDefault();
         e.stopPropagation();
+        debugLog('Flip touchstart');
         game.flip();
+    }, { passive: false });
+
+    btnFlip.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        debugLog('Flip touchend (blocked)');
+    }, { passive: false });
+
+    btnFlip.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.pointerType !== 'touch') {
+            game.flip();
+        }
     });
 
     // Game controls
@@ -542,19 +628,23 @@ function setupEventListeners(SG) {
 
     document.getElementById('btn-next-game').addEventListener('click', async () => {
         hideWinModal();
-        // Try to get an unsolved board, otherwise random
-        const unsolved = await fetchUnsolvedBoards();
+        try {
+            // Try to get an unsolved board, otherwise random
+            const unsolved = await fetchUnsolvedBoards();
 
-        // Try to find a valid board
-        for (const board of unsolved) {
-            const blockers = decodeBlockers(board.board_code);
-            if (blockers) {
-                startNewGame(blockers);
-                return;
+            // Try to find a valid board
+            for (const board of unsolved) {
+                const blockers = decodeBlockers(board.board_code);
+                if (blockers) {
+                    startNewGame(blockers);
+                    return;
+                }
             }
+        } catch (e) {
+            console.error('Failed to fetch unsolved boards, falling back to random:', e);
         }
 
-        // No valid boards - truly random game
+        // No valid boards or API failed - truly random game
         const blockers = SG.rollDice();
         startNewGame(blockers);
     });

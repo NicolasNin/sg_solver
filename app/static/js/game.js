@@ -114,10 +114,24 @@ class Game {
             }
         });
 
-        // Touch Events for Mobile
+        // Touch Events for Mobile - track the specific touch that started the drag
         this.board.svg.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            const touch = e.touches[0];
+            // Use changedTouches to get the NEW touch, not touches[0] which might be the first finger
+            const touch = e.changedTouches[0];
+
+            // Debug
+            if (window.debugLog) window.debugLog('SVG start id:' + touch.identifier + ' total:' + e.touches.length);
+
+            // Only set active touch if we're not already dragging
+            if (this._activeTouchId === null || this._activeTouchId === undefined) {
+                this._activeTouchId = touch.identifier; // Track which touch is dragging
+            } else {
+                // Another touch started while dragging, ignore it
+                if (window.debugLog) window.debugLog('Ignoring extra touch');
+                return;
+            }
+
             const target = document.elementFromPoint(touch.clientX, touch.clientY);
             const mouseEvent = new MouseEvent('mousedown', {
                 clientX: touch.clientX,
@@ -131,7 +145,16 @@ class Game {
 
         this.board.svg.addEventListener('touchmove', (e) => {
             e.preventDefault();
-            const touch = e.touches[0];
+            // Find the touch that started the drag
+            let touch = null;
+            for (let i = 0; i < e.touches.length; i++) {
+                if (e.touches[i].identifier === this._activeTouchId) {
+                    touch = e.touches[i];
+                    break;
+                }
+            }
+            if (!touch) return;
+
             const target = document.elementFromPoint(touch.clientX, touch.clientY);
             const mouseEvent = new MouseEvent('mousemove', {
                 clientX: touch.clientX,
@@ -144,7 +167,28 @@ class Game {
 
         this.board.svg.addEventListener('touchend', (e) => {
             e.preventDefault();
-            const touch = e.changedTouches[0];
+
+            // Debug: log all touch info
+            const touchIds = [];
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                touchIds.push(e.changedTouches[i].identifier);
+            }
+            if (window.debugLog) window.debugLog('SVG end:' + touchIds.join(',') + ' active:' + this._activeTouchId);
+
+            // Only respond when the dragging touch ends
+            let touch = null;
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === this._activeTouchId) {
+                    touch = e.changedTouches[i];
+                    break;
+                }
+            }
+            if (!touch) {
+                return; // A different touch ended, ignore
+            }
+
+            if (window.debugLog) window.debugLog('Dropping piece');
+            this._activeTouchId = null;
             const target = document.elementFromPoint(touch.clientX, touch.clientY);
             const mouseEvent = new MouseEvent('mouseup', {
                 clientX: touch.clientX,
@@ -157,8 +201,39 @@ class Game {
         }, { passive: false });
 
         // Global touch end to catch drops outside SVG
+        // But ignore touches on buttons/controls to prevent cancelling drag when rotating/flipping
         document.addEventListener('touchend', (e) => {
+            // Debug
+            const touchIds = [];
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                touchIds.push(e.changedTouches[i].identifier);
+            }
+            if (window.debugLog) window.debugLog('DOC end:' + touchIds.join(',') + ' active:' + this._activeTouchId);
+
+            // Only respond to the dragging touch
+            let isDraggingTouch = false;
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === this._activeTouchId) {
+                    isDraggingTouch = true;
+                    break;
+                }
+            }
+            if (!isDraggingTouch) {
+                if (window.debugLog) window.debugLog('DOC: not dragging touch');
+                return;
+            }
+
+            // Check if touch ended on a control element
+            const target = e.target;
+            if (window.debugLog) window.debugLog('DOC target:' + target.tagName + ' ' + target.className);
+            if (target.closest('button') || target.closest('.mobile-controls') || target.closest('#controls')) {
+                if (window.debugLog) window.debugLog('DOC: on button, ignoring');
+                return; // Don't cancel drag for button touches
+            }
+
             if (this.isDragging) {
+                if (window.debugLog) window.debugLog('DOC: cancelling drag');
+                this._activeTouchId = null;
                 this._cancelDrag();
             }
         }, { passive: false });
@@ -255,6 +330,7 @@ class Game {
         //     this.board.removePieceElement(this.selectedPiece);
         // }
 
+        this._removeHighlight();
         this.selectedPiece = null;
         this.isDragging = false;
         this.draggedPieceName = null;
@@ -264,6 +340,7 @@ class Game {
 
     // Rotate selected piece (cycles within current side: 0-5 or 6-11)
     rotate(direction = 1) {
+        if (window.debugLog) window.debugLog('rotate() isDragging:' + this.isDragging);
         if (!this.selectedPiece) return;
 
         // Use ordered orientations (0-5 = normal, 6-11 = flipped)
@@ -278,7 +355,9 @@ class Game {
         this._setStatus(`Rotated ${this.selectedPiece} (rot ${newRotation}${isFlipped ? ' flipped' : ''})`);
 
         // Re-render
+        if (window.debugLog) window.debugLog('rotate() calling preview update');
         this._updateFloatingPreview();
+        if (window.debugLog) window.debugLog('rotate() done, isDragging:' + this.isDragging);
     }
 
     // Flip selected piece (toggles between 0-5 and 6-11)
@@ -459,8 +538,9 @@ class Game {
                     this.board.removePiece(pieceName, true); // remove from logic, keep visual
                 }
 
-                this._setStatus('Placed outside grid');
-                this.deselect();
+                // Keep piece selected so user can rotate/flip then re-drag
+                this._setStatus(`${pieceName} - tap Rotate/Flip or drag again`);
+                this._highlightSelectedPiece();
                 // Do NOT call removePieceElement(pieceName)
             }
         } else {
@@ -471,12 +551,13 @@ class Game {
                 this.board.removePiece(pieceName, true);
             }
 
-            // CRITICAL fix: ensure we don't accidentally remove visualization
-            this.selectedPiece = null; // Just deselect, don't remove
+            // Keep piece selected so user can rotate/flip then re-drag
+            // this.selectedPiece = null; // DON'T deselect!
             this.isDragging = false;
             this.draggedPieceName = null;
             this._updateUI();
-            this._setStatus('Placed on sideline');
+            this._setStatus(`${pieceName} - tap Rotate/Flip or drag again`);
+            this._highlightSelectedPiece();
         }
 
         this.endDrag();
@@ -484,11 +565,33 @@ class Game {
 
     _cancelDrag() {
         if (!this.isDragging) return;
-        // If cancelled (e.g. mouse up outside window/SVG), just leave it where it is
-        const pieceName = this.draggedPieceName;
-        this.deselect();
-        // this.board.removePieceElement(pieceName); // CRITICAL FIX: Do NOT remove visuals!
+        // Keep piece selected so user can rotate/flip then re-drag
+        // this.deselect(); // DON'T deselect!
+        this._highlightSelectedPiece();
         this.endDrag();
+    }
+
+    // Add visual highlight to selected piece
+    _highlightSelectedPiece() {
+        // Remove highlight from all pieces
+        this.board.pieceElements.forEach((group, name) => {
+            group.classList.remove('piece-selected');
+        });
+
+        // Add highlight to selected piece
+        if (this.selectedPiece) {
+            const group = this.board.pieceElements.get(this.selectedPiece);
+            if (group) {
+                group.classList.add('piece-selected');
+            }
+        }
+    }
+
+    // Override deselect to remove highlight
+    _removeHighlight() {
+        this.board.pieceElements.forEach((group, name) => {
+            group.classList.remove('piece-selected');
+        });
     }
 
     endDrag() {
@@ -511,6 +614,12 @@ class Game {
             const y = mousePos.y + this.dragOffset.y;
 
             this.board.updatePiecePosition(this.draggedPieceName, x, y);
+
+            // Debug: show we're still moving (only every 10 moves to avoid spam)
+            this._moveCount = (this._moveCount || 0) + 1;
+            if (this._moveCount % 30 === 0) {
+                if (window.debugLog) window.debugLog('moving:' + this._moveCount);
+            }
         }
     }
 
@@ -551,6 +660,8 @@ class Game {
                     y = parseFloat(match[2]);
                 }
             }
+
+            if (window.debugLog) window.debugLog('preview pos:' + Math.round(x) + ',' + Math.round(y));
 
             // Re-render with new rotation
             const group = this.board.renderPiece(piece, x, y, this.currentOrientation);
