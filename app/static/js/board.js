@@ -8,13 +8,27 @@
 // Access StarGenius namespace (set by pieces.js)
 const SG = window.StarGenius;
 
+// Get theme-aware board colors from main.js THEMES config
+function getThemeColors() {
+    const themeName = document.documentElement.getAttribute('data-theme') || 'dark';
+    const themes = window.StarGenius?.THEMES || {
+        dark: { cellFill: '#1b2856', cellStroke: '#1a1a2e', svgBg: '#0d1117', blockerColor: '#32408a' },
+        pastel: { cellFill: '#a8d4f0', cellStroke: '#7fb8dc', svgBg: 'transparent', blockerColor: '#FFFFFF' }
+    };
+    const theme = themes[themeName] || themes.dark;
+    return {
+        emptyColor: theme.cellFill,
+        cellStroke: theme.cellStroke,
+        svgBg: theme.svgBg,
+        blockerColor: theme.blockerColor
+    };
+}
+
 // Board configuration
 const BOARD_CONFIG = {
     scale: 95,          // Pixels per unit
     margin: 10,         // SVG margin (reduced to save vertical space)
-    cellStroke: '#1a1a2e',
     cellStrokeWidth: 1,
-    emptyColor: '#1b2856',
     labelColor: '#666',
     labelSize: 24,      // Smaller labels (was 40)
 };
@@ -111,9 +125,10 @@ function createCellPolygon(pos, cellId, bounds, state = 'empty') {
     const pointsStr = pixels.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
 
     // Determine color based on state
-    let fill = BOARD_CONFIG.emptyColor;
+    const themeColors = getThemeColors();
+    let fill = themeColors.emptyColor;
     if (state === 'blocker') {
-        fill = SG.BLOCKER_COLOR;
+        fill = themeColors.blockerColor;
     } else if (state && state !== 'empty') {
         fill = SG.PIECE_COLORS[state] || '#CCCCCC';
     }
@@ -121,11 +136,12 @@ function createCellPolygon(pos, cellId, bounds, state = 'empty') {
     const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
     polygon.setAttribute('points', pointsStr);
     polygon.setAttribute('fill', fill);
-    polygon.setAttribute('stroke', BOARD_CONFIG.cellStroke);
+    polygon.setAttribute('stroke', themeColors.cellStroke);
     polygon.setAttribute('stroke-width', BOARD_CONFIG.cellStrokeWidth);
     polygon.setAttribute('class', 'board-cell');
     polygon.setAttribute('data-cell-id', cellId);
     polygon.setAttribute('data-pos-key', pos.key());
+    polygon.setAttribute('data-state', state || 'empty');  // Track cell state!
 
     return { polygon, center: getCentroid(pixels) };
 }
@@ -171,11 +187,12 @@ class Board {
     _setupSVG() {
         this.svg.setAttribute('viewBox', `0 0 ${this.bounds.width.toFixed(0)} ${this.bounds.height.toFixed(0)}`);
 
-        // Create background (transparent to show page background)
+        // Create background
+        const themeColors = getThemeColors();
         const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
         bg.setAttribute('width', '100%');
         bg.setAttribute('height', '100%');
-        bg.setAttribute('fill', 'transparent');
+        bg.setAttribute('fill', themeColors.svgBg);
         this.svg.appendChild(bg);
 
         // Create groups for layering
@@ -443,15 +460,17 @@ class Board {
         const polygon = this.cellElements.get(key);
         if (!polygon) return;
 
-        let fill = BOARD_CONFIG.emptyColor;
+        const themeColors = getThemeColors();
+        let fill = themeColors.emptyColor;
         if (state === 'blocker') {
-            fill = SG.BLOCKER_COLOR;
+            fill = themeColors.blockerColor;
         } else if (state && state !== 'empty') {
             fill = SG.PIECE_COLORS[state] || '#CCCCCC';
         }
 
         console.log(`[${performance.now().toFixed(1)}ms] _updateCell: setting fill=${fill} for key=${key}`);
         polygon.setAttribute('fill', fill);
+        polygon.setAttribute('data-state', state || 'empty');  // Update state tracking!
         console.log(`[${performance.now().toFixed(1)}ms] _updateCell: fill SET, current fill=${polygon.getAttribute('fill')}`);
 
         // Toggle label visibility

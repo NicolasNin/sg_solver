@@ -13,6 +13,26 @@
     --border-color: #30363d;
 }
 
+/* Pastel Theme Variables */
+[data-theme="pastel"] {
+    --bg-dark: #fdf6e8;
+    --bg-card: rgba(255, 250, 240, 0.85);
+    --bg-board: #a8d4f0;
+    --text-primary: #3d3d3d;
+    --text-secondary: #6b7280;
+    --accent-blue: #5b9bd5;
+    --accent-green: #7bc96f;
+    --accent-yellow: #f9c74f;
+    --accent-red: #e07a5f;
+    --border-color: #d4c4a8;
+}
+
+[data-theme="pastel"] body,
+body[data-theme="pastel"] {
+    font-family: 'Comic Sans MS', 'Chalkboard SE', 'Comic Neue', cursive, sans-serif;
+    background: var(--bg-dark) url('bg_pastel.jpg') center/cover fixed;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -21,7 +41,7 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-    background: var(--bg-dark) url('bg_pastel.jpg') center/cover fixed;
+    background: var(--bg-dark);
     color: var(--text-primary);
     min-height: 100vh;
 }
@@ -122,6 +142,26 @@ header {
 
 header h1 {
     font-size: 1.5rem;
+}
+
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+#theme-select {
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+#theme-select:hover {
+    border-color: var(--accent-blue);
 }
 
 /* Main Layout */
@@ -446,4 +486,123 @@ kbd {
 #btn-start-dice:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+/* Player Name Display */
+.player-name {
+    padding: 6px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: border-color 0.2s;
+}
+
+.player-name:hover {
+    border-color: var(--accent-blue);
+}
+
+/* Best Time Display */
+.best-time {
+    padding: 6px 12px;
+    background: rgba(255, 215, 0, 0.15);
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    border-radius: 6px;
+    font-size: 0.875rem;
+    color: #ffd700;
+}
+
+/* Win Modal */
+.win-modal-content {
+    text-align: center;
+    max-width: 400px;
+}
+
+.win-stats {
+    margin: 20px 0;
+    padding: 16px;
+    background: var(--bg-dark);
+    border-radius: 8px;
+}
+
+.win-time {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--accent-green);
+    margin-bottom: 8px;
+}
+
+.win-rank {
+    font-size: 1.2rem;
+    color: var(--accent-yellow);
+}
+
+.win-name-section {
+    margin: 16px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+.win-name-section label {
+    font-weight: 500;
+}
+
+.win-name-section input {
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 1rem;
+    width: 150px;
+}
+
+.win-leaderboard {
+    margin: 16px 0;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.win-leaderboard table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.win-leaderboard th,
+.win-leaderboard td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.win-leaderboard th {
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.win-leaderboard tr.current-player {
+    background: rgba(88, 166, 255, 0.15);
+}
+
+.win-leaderboard .rank-1 {
+    color: #ffd700;
+}
+
+.win-leaderboard .rank-2 {
+    color: #c0c0c0;
+}
+
+.win-leaderboard .rank-3 {
+    color: #cd7f32;
+}
+
+.win-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 20px;
 }

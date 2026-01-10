@@ -16,10 +16,20 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional
 import uvicorn
 import os
 
 from sg_solver import Board, TrianglePos, solve_puzzle, solve_puzzle_from_board, ALL_PIECES, PIECE_ORIENTATIONS
+from app.database import (
+    init_db, save_score, get_best_time, get_leaderboard, get_global_stats,
+    get_all_solved_boards, get_unsolved_boards_for_client, 
+    get_unsolved_boards_for_player, get_solved_boards_for_player,
+    update_score_name
+)
+
+# Initialize database on import
+init_db()
 
 app = FastAPI(title="Star Genius")
 api_router = APIRouter(prefix="/api")
@@ -281,6 +291,113 @@ async def detect_board(image: UploadFile = File(...)):
         traceback.print_exc()
         return DetectResponse(success=False, error=str(e))
 
+
+# === Score/Leaderboard Endpoints ===
+
+class ScoreSubmission(BaseModel):
+    board_code: str
+    player_name: str
+    time_seconds: float
+    hints_used: int = 0
+    pieces_placed: int = 11
+    client_id: Optional[str] = None
+
+class ScoreResponse(BaseModel):
+    score_id: int
+    rank: int
+    is_best: bool
+    best_time: float
+    best_player: str
+
+class LeaderboardEntry(BaseModel):
+    rank: int
+    player: str
+    time: float
+    hints_used: int
+
+class LeaderboardResponse(BaseModel):
+    board_code: str
+    best_time: Optional[float] = None
+    best_player: Optional[str] = None
+    leaderboard: list[LeaderboardEntry] = []
+
+@api_router.post("/scores", response_model=ScoreResponse)
+async def submit_score(submission: ScoreSubmission):
+    """Submit a solve time for a board."""
+    result = save_score(
+        board_code=submission.board_code,
+        player_name=submission.player_name,
+        time_seconds=submission.time_seconds,
+        hints_used=submission.hints_used,
+        pieces_placed=submission.pieces_placed,
+        client_id=submission.client_id
+    )
+    return ScoreResponse(**result)
+
+@api_router.get("/scores/{board_code}", response_model=LeaderboardResponse)
+async def get_board_leaderboard(board_code: str, limit: int = 5):
+    """Get leaderboard for a specific board."""
+    best = get_best_time(board_code)
+    lb = get_leaderboard(board_code, limit)
+    
+    return LeaderboardResponse(
+        board_code=board_code,
+        best_time=best["time_seconds"] if best else None,
+        best_player=best["player_name"] if best else None,
+        leaderboard=[LeaderboardEntry(**entry) for entry in lb]
+    )
+
+class ScoreNameUpdate(BaseModel):
+    player_name: str
+    client_id: str
+
+@api_router.patch("/scores/{score_id}")
+async def update_score(score_id: int, update: ScoreNameUpdate):
+    """Update player name for a score (must own via client_id)."""
+    success = update_score_name(score_id, update.player_name, update.client_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Score not found or not owned")
+    return {"success": True, "score_id": score_id}
+
+@api_router.get("/stats")
+async def get_stats():
+    """Get global statistics."""
+    return get_global_stats()
+
+
+# === Board Discovery Endpoints ===
+
+@api_router.get("/boards")
+async def get_boards():
+    """Get all boards that have been solved (for suggestions)."""
+    return {"boards": get_all_solved_boards()}
+
+
+@api_router.get("/boards/unsolved")
+async def get_unsolved_boards(client_id: Optional[str] = None, player_name: Optional[str] = None):
+    """
+    Get boards not yet solved by this user.
+    Priority: player_name > client_id
+    """
+    if player_name:
+        boards = get_unsolved_boards_for_player(player_name)
+    elif client_id:
+        boards = get_unsolved_boards_for_client(client_id)
+    else:
+        # No filter - return all boards
+        boards = get_all_solved_boards()
+    
+    return {"boards": boards}
+
+
+@api_router.get("/boards/player/{player_name}")
+async def get_player_boards(player_name: str):
+    """Get boards that this player has solved."""
+    return {
+        "player": player_name,
+        "solved": get_solved_boards_for_player(player_name),
+        "unsolved": get_unsolved_boards_for_player(player_name)
+    }
 
 # Register the API router
 app.include_router(api_router)

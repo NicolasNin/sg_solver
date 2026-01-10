@@ -571,11 +571,17 @@ class Game {
 
     _onWin() {
         this._stopTimer();
+        const solveTime = (Date.now() - this.startTime) / 1000;
         this._setStatus('🎉 Puzzle Solved! 🎉');
         this.board.svg.classList.add('win-animation');
         setTimeout(() => {
             this.board.svg.classList.remove('win-animation');
         }, 1500);
+
+        // Call win callback if set (for leaderboard)
+        if (this.onWinCallback) {
+            this.onWinCallback(solveTime, this.hintsUsed || 0);
+        }
     }
 
     _startTimer(reset = true) {
