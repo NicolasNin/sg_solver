@@ -26,6 +26,7 @@ class Game {
         this.timerInterval = null;
         this.startTime = null;
         this.alreadySolved = false;
+        this.hintsUsed = 0;
 
         this._setupEventListeners();
     }
@@ -290,6 +291,7 @@ class Game {
         this.currentOrientation = 0;
         this.blockers = blockerIds;
         this.alreadySolved = false;
+        this.hintsUsed = 0;
 
         // Place blockers
         for (const id of blockerIds) {
@@ -427,7 +429,9 @@ class Game {
         // Let's assume anchor is fine.
 
         this._updateUI();
+        this._updateUI();
         this._setStatus(`Moving ${pieceName} - R to rotate`);
+        this._highlightSelectedPiece();
     }
 
     // Deselect current piece
@@ -547,7 +551,10 @@ class Game {
             this.selectedPiece = pieceName;
             this.currentOrientation = rotation;
             this._updateUI();
+            this.currentOrientation = rotation;
+            this._updateUI();
             this._setStatus(`Moving ${pieceName} - R to rotate`);
+            this._highlightSelectedPiece();
         } else {
             // Already selected
             const rotation = this.currentOrientation;
@@ -556,7 +563,9 @@ class Game {
 
             this.selectedPiece = pieceName;
             this.currentOrientation = rotation;
+            this.currentOrientation = rotation;
             this._updateUI();
+            this._highlightSelectedPiece();
         }
 
         // Calculate drag offset
@@ -623,6 +632,7 @@ class Game {
                 // Success!
                 this.board.placePiece(piece.name, positions);
                 this.placedPieces.set(piece.name, this.currentOrientation);
+                this._removeHighlight();
 
                 // Snap visual to correct position (centroid-based)
                 const snapPos = this.board.getSnapPositionForPiece(piece, cellPos);
@@ -949,6 +959,96 @@ class Game {
         if (this.board.isSolved()) {
             this._onWin();
         }
+    }
+
+    // Apply a single piece from the solution as a hint
+    applySinglePieceHint(solution, orientations = {}, anchors = {}) {
+        // Iterate through solution pieces to find one that is NOT placed or placed incorrectly
+        for (const pieceName of Object.keys(solution)) {
+            // Get correct cell IDs
+            const solutionCellIds = solution[pieceName];
+            const solutionOrientation = orientations[pieceName] || 0;
+
+            // Check if this piece is already correctly placed
+            if (this.placedPieces.has(pieceName)) {
+
+                // Detailed check: is it in the right cells?
+                // We can check just orientation and one cell for basic verification
+                // Or checking all cells.
+
+                // Let's check orientation first
+                const currentOrientation = this.placedPieces.get(pieceName);
+                if (currentOrientation !== solutionOrientation) {
+                    // Wrong orientation -> this is the hint!
+                    // Remove erroneous placement and Apply this one
+                    this.board.removePiece(pieceName, true);
+                    // Fallthrough to placement logic below
+                } else {
+                    // Orientation matches, check position
+                    // Get current cells of the piece
+                    // We can check occupied map or just assume if orientation is right and it's placed validly...
+                    // But user might have placed it validly but in wrong spot.
+
+                    // We need to know if the piece is in the set of solution cells.
+                    // Let's get the anchor cell of the current placement.
+                    // This is hard to reverse. 
+                    // Easier: Check if the solution cells are occupied by this piece in board state.
+
+                    let isCorrectPos = true;
+                    for (const cellId of solutionCellIds) {
+                        const cell = this.board.getCellById(cellId);
+                        if (!cell || this.board.occupied.get(cell.key()) !== pieceName) {
+                            isCorrectPos = false;
+                            break;
+                        }
+                    }
+
+                    if (isCorrectPos) {
+                        continue; // This piece is already correct, check next
+                    } else {
+                        // Wrong position -> this is the hint!
+                        this.board.removePiece(pieceName, true);
+                        // Fallthrough to placement logic
+                    }
+                }
+            }
+
+            // If we are here, 'pieceName' is the hint to apply!
+
+            // 1. Get positions
+            const positions = solution[pieceName].map(id => this.board.getCellById(id));
+
+            // 2. Place on logical board
+            this.board.placePiece(pieceName, positions);
+
+            // 3. Update game state
+            this.placedPieces.set(pieceName, solutionOrientation);
+
+            // 4. Visual Rendering
+            const orientedPiece = SG_GAME.PIECE_ORIENTATIONS[pieceName][solutionOrientation];
+            if (!orientedPiece) continue;
+
+            let anchorCellPos = positions[0];
+            if (anchors[pieceName]) {
+                anchorCellPos = this.board.getCellById(anchors[pieceName]);
+            }
+
+            const snapPos = this.board.getSnapPositionForPiece(orientedPiece, anchorCellPos);
+            if (snapPos) {
+                this.board.renderPiece(orientedPiece, snapPos[0], snapPos[1], solutionOrientation);
+            }
+
+            this.hintsUsed++;
+            this._updateUI();
+
+            if (this.board.isSolved()) {
+                this._onWin();
+            }
+
+            return true; // Hint applied
+        }
+
+        return false; // No hint applied (puzzle might be already solved or consistent with solution)
     }
 }
 

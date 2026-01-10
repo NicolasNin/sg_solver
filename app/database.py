@@ -77,17 +77,20 @@ def save_score(
     score_id = cursor.lastrowid
     
     # Get rank for this score (how many are faster)
+    # Get rank for this score (how many are better)
+    # Better means: fewer hints OR (same hints AND faster time)
     cursor.execute("""
         SELECT COUNT(*) + 1 as rank FROM scores 
-        WHERE board_code = ? AND time_seconds < ?
-    """, (board_code, time_seconds))
+        WHERE board_code = ? 
+        AND (hints_used < ? OR (hints_used = ? AND time_seconds < ?))
+    """, (board_code, hints_used, hints_used, time_seconds))
     rank = cursor.fetchone()["rank"]
     
     # Get best time for this board
     cursor.execute("""
         SELECT time_seconds, player_name FROM scores 
         WHERE board_code = ? 
-        ORDER BY time_seconds ASC LIMIT 1
+        ORDER BY hints_used ASC, time_seconds ASC LIMIT 1
     """, (board_code,))
     best = cursor.fetchone()
     
@@ -137,7 +140,7 @@ def get_best_time(board_code: str) -> Optional[dict]:
     cursor.execute("""
         SELECT time_seconds, player_name, created_at FROM scores 
         WHERE board_code = ? 
-        ORDER BY time_seconds ASC LIMIT 1
+        ORDER BY hints_used ASC, time_seconds ASC LIMIT 1
     """, (board_code,))
     
     row = cursor.fetchone()
@@ -161,7 +164,7 @@ def get_leaderboard(board_code: str, limit: int = 5) -> list:
         SELECT player_name, time_seconds, hints_used, created_at 
         FROM scores 
         WHERE board_code = ? 
-        ORDER BY time_seconds ASC 
+        ORDER BY hints_used ASC, time_seconds ASC 
         LIMIT ?
     """, (board_code, limit))
     

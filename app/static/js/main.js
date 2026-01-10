@@ -184,7 +184,7 @@ function populateLeaderboard(data, currentTime) {
     }
 
     let html = `<table>
-        <thead><tr><th>#</th><th>Player</th><th>Time</th></tr></thead>
+        <thead><tr><th>#</th><th>Player</th><th>Hints</th><th>Time</th></tr></thead>
         <tbody>`;
 
     for (const entry of data.leaderboard) {
@@ -193,6 +193,7 @@ function populateLeaderboard(data, currentTime) {
         html += `<tr class="${isCurrent ? 'current-player' : ''} ${rankClass}">
             <td>${entry.rank}</td>
             <td>${entry.player}</td>
+            <td>${entry.hints_used}</td>
             <td>${formatTime(entry.time)}</td>
         </tr>`;
     }
@@ -593,6 +594,22 @@ function setupEventListeners(SG) {
         }
     });
 
+    // Mobile Controls
+    const btnMobileHelp = document.getElementById('btn-mobile-help');
+    if (btnMobileHelp) {
+        // Handle touch events to prevent default scrolling if needed, or just standard click
+        btnMobileHelp.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            // Trigger hint mode (true)
+            await solveCurrentPuzzle(true);
+        });
+        // Prevent double taps zooming etc
+        btnMobileHelp.addEventListener('touchstart', (e) => {
+            e.stopPropagation();
+        }, { passive: true });
+    }
+
     // Burger Menu Logic
     const menuBtn = document.getElementById('btn-menu');
     const closeMenuBtn = document.getElementById('btn-close-menu');
@@ -662,7 +679,7 @@ function setupEventListeners(SG) {
             }
 
             let html = `<table>
-                <thead><tr><th>#</th><th>Player</th><th>Time</th></tr></thead>
+                <thead><tr><th>#</th><th>Player</th><th>Hints</th><th>Time</th></tr></thead>
                 <tbody>`;
 
             for (const entry of data.leaderboard) {
@@ -670,6 +687,7 @@ function setupEventListeners(SG) {
                 html += `<tr class="${rankClass}">
                     <td>${entry.rank}</td>
                     <td>${entry.player}</td>
+                    <td>${entry.hints_used}</td>
                     <td>${formatTime(entry.time)}</td>
                 </tr>`;
             }
@@ -929,19 +947,37 @@ async function solveCurrentPuzzle(useFullBoard = false, resetBeforeApply = false
         const result = await window.StarGenius.api.solvePuzzle(state);
 
         if (result.solution && Object.keys(result.solution).length > 0) {
-            // Efficiently clear pieces without re-rendering board
             if (resetBeforeApply) {
+                // Efficiently clear pieces for solve (doesn't re-render board cells)
                 game.clearPiecesForSolve();
-            }
-            game.applySolution(result.solution, result.orientations, result.anchors);
-            if (statusEl) {
-                statusEl.style.color = '';
-                statusEl.textContent = '✓ Solution applied';
+                game.hintsUsed = 11; // Full solve penalty set BEFORE applying to catch Win callback
+                game.applySolution(result.solution, result.orientations, result.anchors);
+                if (statusEl) {
+                    statusEl.style.color = '';
+                    statusEl.textContent = '✓ Solution applied';
+                }
+            } else {
+                // Help Me behavior (One Hint)
+                const applied = game.applySinglePieceHint(result.solution, result.orientations, result.anchors);
+                if (applied) {
+                    if (statusEl) {
+                        statusEl.style.color = '';
+                        statusEl.textContent = '✓ Hint applied';
+                        setTimeout(() => {
+                            statusEl.textContent = 'Drag pieces or use Hint';
+                        }, 2000);
+                    }
+                } else {
+                    // Solved or no hint possible
+                    showToast("Puzzle already solved!", "success");
+                    if (statusEl) statusEl.textContent = 'Puzzle already solved!';
+                }
             }
         } else {
             // Friendly message
+            showToast("No solution found from this position!", "error");
             if (statusEl) {
-                statusEl.textContent = '❌ No solution found - try a different arrangement';
+                statusEl.textContent = '❌ No solution found';
                 statusEl.style.color = '#ff6b6b';
                 setTimeout(() => {
                     statusEl.style.color = '';
@@ -949,16 +985,13 @@ async function solveCurrentPuzzle(useFullBoard = false, resetBeforeApply = false
                 }, 3000);
             }
         }
-    } catch (error) {
-        // Show error in status
+    } catch (e) {
+        console.error('Solver error:', e);
         if (statusEl) {
-            statusEl.textContent = `⚠️ ${error.message}`;
-            statusEl.style.color = '#ffa502';
-            setTimeout(() => {
-                statusEl.style.color = '';
-                statusEl.textContent = 'Drag pieces onto the board';
-            }, 3000);
+            statusEl.textContent = '❌ Solver error';
+            statusEl.style.color = '#ff6b6b';
         }
+        showToast("Solver error: " + e.message, "error");
     }
 }
 
@@ -1017,5 +1050,19 @@ function showLoading(text = 'Loading...') {
 
 function hideLoading() {
     document.getElementById('loading').classList.add('hidden');
+}
+
+function showToast(message, type = 'info') {
+    let toast = document.getElementById('toast-notification');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'toast-notification';
+        document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.className = `toast toast-${type} show`;
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 3000);
 }
 
