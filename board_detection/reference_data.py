@@ -4,13 +4,16 @@ MIN_AREA = 0.15
 REF_PATH = "../data/images/perfect_nobg.png"
 
 cropped_image_ref_shape = (1014, 903, 3)
-MIN_PTS_REF = [(848, 780),
- (537, 909),
- (291, 780),
- (130, 505),
- (289, 234),
- (611, 234),
- (772, 507)]
+MIN_PTS_REF = [(848, 780), #bottrom right cote logo
+ (537, 909),#bottom right 
+ (291, 780),#bottom left
+ (130, 505),#mid left
+ (289, 234),#top left
+ (611, 234),#top right
+ (772, 507)]#mid right
+
+YOLO_KEY_PTS_ID_MIN = [5,7,9,11,13,1,3] #among the 14 key points of my trained yolo models which id correspond to the min points of the star
+#YOLO_KEY_PTS_ID_MAX = [] #among the 14 key points of my trained yolo models which id correspond to the max points of the star
 
 MAX_PTS_REF =[(900, 754), (837, 897), (442, 1013), (4, 760), (7, 246), (457, 0), (897, 253)]
 

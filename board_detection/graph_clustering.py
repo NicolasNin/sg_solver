@@ -123,7 +123,7 @@ def circular_median(angles, period=2 * np.pi):
     med = np.mod(med_rot + cut_angle, period)
     return med
 
-def compute_color_values(warped,corrected_points):
+def compute_color_values(warped,corrected_points,patch_size=80):
     warped_blur = cv2.GaussianBlur(warped, (3, 3), 0)
 
     centers = [corrected_points[x] for x in corrected_points]
@@ -132,7 +132,7 @@ def compute_color_values(warped,corrected_points):
     warped_blur_hsv  = cv2.cvtColor(warped_blur, cv2.COLOR_BGR2HSV)
     patches_lab = extract_patches(warped_blur_lab,centers,80) #a list of  (80, 80, 3) lab images
     patches_hsv = extract_patches(warped_blur_hsv,centers,80)
-    patches_fake_hsv = extract_patches(warped_blur_fakeHSV,centers,80)
+    patches_fake_hsv = extract_patches(warped_blur_fakeHSV,centers,patch_size)
 
     data_color={}
     for i in range(len(patches_lab)):
@@ -161,6 +161,32 @@ def compute_color_values(warped,corrected_points):
             "fakehue_med":np.median(patch_fakehue)
         }
     return data_color
+def distance_color_data(cd1,cd2):
+
+    hue1 = cd1["hue_med"]
+    theta1 = cd1["theta_med"]
+    chroma1 =  cd1["chroma_med"]
+    L1 =  cd1["L_med"]
+    
+    hue2 = cd2["hue_med"]
+    theta2 = cd2["theta_med"]
+    chroma2 =  cd2["chroma_med"]
+    L2 =  cd2["L_med"]    
+    
+    delta_hue = abs(hue1 - hue2)
+    delta_hue = min(delta_hue, 360 - delta_hue)
+
+    delta_theta = abs(theta1 - theta2)
+    delta_theta = min(delta_theta, 360 - delta_theta)
+
+    min_chroma = min(chroma1,chroma2)
+    delta_chroma = abs(chroma1 - chroma2)
+    delta_L = abs(L1 - L2)
+
+    feat = (delta_theta,delta_chroma,delta_L,delta_hue,min_chroma)
+    #label = int(get_code_no_triangle(c1)==get_code_no_triangle(c2))
+    
+    return feat
 
 def cluster_graph_values(values,threshold,distance,to_prune=None):
     #typically to prune are white triangles ids
@@ -169,6 +195,10 @@ def cluster_graph_values(values,threshold,distance,to_prune=None):
     clusters = cluster_graph(graph_pruned, values, threshold,distance=distance)
     return clusters
 
+def random_color(seed):
+    import random
+    random.seed(seed)
+    return tuple(int(c) for c in random.choices(range(50, 255), k=3))
 
 def visualize_clusters(debug_img, corrected_points,values, clusters, radius=5):
     """
@@ -200,3 +230,85 @@ def visualize_clusters(debug_img, corrected_points,values, clusters, radius=5):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0), 1, cv2.LINE_AA)
 
     return img
+
+
+class UnionFind:
+    def __init__(self):
+        self.parent = {}
+
+    def find(self, x):
+        if x not in self.parent:
+            self.parent[x] = x
+        if self.parent[x] != x:
+            self.parent[x] = self.find(self.parent[x])
+        return self.parent[x]
+
+    def union(self, x, y):
+        rx, ry = self.find(x), self.find(y)
+        if rx != ry:
+            self.parent[ry] = rx
+
+def cluster_graph_edges(adjacency, edge_values, threshold=0.5):
+    uf = UnionFind()
+
+    for u, neighbors in adjacency.items():
+        uf.find(u)  # ensure node exists
+        for v in neighbors:
+            p = edge_values.get((u, v), 0.0)
+            if p >= threshold:
+                uf.union(u, v)
+
+    # collect components
+    clusters = {}
+    for u in adjacency:
+        root = uf.find(u)
+        clusters.setdefault(root, []).append(u)
+
+    return list(clusters.values())
+
+def draw_cluster_mst(image, clusters, corrected_points):
+    vis = image.copy()
+
+    for k, cluster in enumerate(clusters):
+        color = random_color(k)
+
+        pts = [
+            (n, tuple(map(int, corrected_points[n])))
+            for n in cluster
+            if n in corrected_points
+        ]
+
+        if not pts:
+            continue
+
+        pos = dict(pts)
+
+        # ✅ ALWAYS draw points
+        for p in pos.values():
+            cv2.circle(vis, p, 6, color, -1)
+
+        # ✅ Only draw edges if cluster size > 1
+        if len(pos) == 1:
+            continue
+
+        # Prim's MST
+        nodes = list(pos.keys())
+        used = {nodes[0]}
+        unused = set(nodes[1:])
+
+        while unused:
+            best = None
+            best_d = 1e9
+            for u in used:
+                for v in unused:
+                    d = (pos[u][0] - pos[v][0])**2 + (pos[u][1] - pos[v][1])**2
+                    if d < best_d:
+                        best = (u, v)
+                        best_d = d
+
+            u, v = best
+            cv2.line(vis, pos[u], pos[v], color, 2)
+            used.add(v)
+            unused.remove(v)
+
+    return vis

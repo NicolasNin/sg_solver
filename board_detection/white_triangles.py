@@ -15,18 +15,34 @@ def get_white_mask(image_bgr,clean=True):
                                      cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(5,5)))
     return mask_white
 
+def equilateralness_from_sides(pts, tol_ratio=0.15):
+    pts = np.asarray(pts, dtype=np.float32).reshape(3, 2)
+    d = np.array([
+        np.linalg.norm(pts[0] - pts[1]),
+        np.linalg.norm(pts[1] - pts[2]),
+        np.linalg.norm(pts[2] - pts[0]),
+    ])
+    mean_d = d.mean()
+    if mean_d == 0:
+        return 0.0
+    rel_std = d.std() / mean_d
+    if rel_std >= tol_ratio:
+        return 0.0
+    return float(1.0 - rel_std / tol_ratio)
+
+
 def triangularity(cnt,return_inv=False):
     #T :equilateral==1 other triangle less than 1
     A = cv2.contourArea(cnt)
     P = cv2.arcLength(cnt, True)
     if P == 0:
-        return 0.0
+        return 0.0,0,0
     T = 12 * math.sqrt(3) * A / (P * P)
     #print(A,P,T)
     # clip to [0, 1] in case of noise / numerical issues
     if return_inv:
         return float(1-np.abs(1-T)),A,P
-    return float(1-np.abs(1-T))
+    return float(1-np.abs(1-T)),A,P
 
 def vertex_count_score(n, target=3, max_extra_vertices=5):
     if n <= target:
@@ -39,31 +55,45 @@ def vertex_count_score(n, target=3, max_extra_vertices=5):
 
 def triangle_confidence(cnt):
     T,A,P = triangularity(cnt,return_inv=True)
-    approx = cv2.approxPolyDP(cnt, 0.04 * P, True)
+    approx = cv2.approxPolyDP(cnt, 0.06 * P, True)
     n = len(approx)
+    if n==3:
+        eq = equilateralness_from_sides(approx)
+    else:
+        eq = 0
     v_score = vertex_count_score(n)
     conf = math.sqrt(T * v_score)
     
-    return float(np.clip(conf, 0.0, 1.0)),P,A,n
+    return float(np.clip(conf, 0.0, 1.0)),P,A,n,eq
 
 
 #helper
-def filter_triangles_big_or_small(c,P,A,n):
+def filter_triangles_big_or_small(c,P,A,n,eq):
     # big triangle P~330 A~6000
     # small triangl P~220 A~2400
-    #print(c,P,A,n,abs(A-6000),abs(A-2250))
-    if c>0.8:
-        if P>300 and abs(A-6000)<2500:
+    #print(f"c {c:.2f},P {P:.2f},A {A:.2f},n {n},eq {eq:.2f}")
+    #print(c,P,A,n,eq,"A-6000",abs(A-6000),"A-2550",abs(A-2550),(P>300 and abs(A-6000)<2500) or(P>180 and abs(A-2550)<800))
+    if c>0.75 and eq>0.5 and abs(100*A/(P*P)-5.5)<0.5:
+        if P>250:
+            return "big" 
+        else:
+            return "small"         
+    if c>0.75 and eq>0.5:
+        if P>270 and A<9500:
             return "big"
-        elif P>180 and abs(A-2450)<800:
+        elif P>180 and abs(A-2550)<800:
             return "small" 
+        elif P>180 and P<270 and abs(A-3000)<1000:
+            return "small_large" 
     return "None"    
 
 def count_triangles_big_small(hulls):
     results = []
-    for cnt in hulls:
-        c,P,A,n = triangle_confidence(cnt)
-        results.append(filter_triangles_big_or_small(c,P,A,n))
+    for k,cnt in enumerate(hulls):
+        c,P,A,n,eq = triangle_confidence(cnt)
+        results.append(filter_triangles_big_or_small(c,P,A,n,eq))
+        print(k,c,"P",P,"A",A,"A/P^2",round(100*A/(P*P),2),n,"eq",eq,"A-6000",abs(A-6000),"A-2550",abs(A-2550),(P>300 and abs(A-6000)<2500) or(P>180 and abs(A-2550)<800),
+        results[-1])
     return results
 
 def get_center_of_mass_and_orientation(hull):
@@ -92,7 +122,7 @@ def find_best_matching_centers(centers_of_mass,centers):
     return np.argmin(distances,axis=0)
 
 
-def find_white_triangles(warped_no_bg,corrected_points):
+def find_white_triangles(warped_no_bg,corrected_points,blur_level=1):
     #need mask_logo
     if isinstance(corrected_points, dict):
         corrected_points = np.array([corrected_points[i] for i in corrected_points])
@@ -106,8 +136,8 @@ def find_white_triangles(warped_no_bg,corrected_points):
     roi_gray = cv2.cvtColor(roi,cv2.COLOR_BGR2GRAY)
     
     #find contours and hulls
-    b=1
-    roi_gray = cv2.GaussianBlur(roi_gray, (b, b), 0)
+    
+    roi_gray = cv2.GaussianBlur(roi_gray, (blur_level, blur_level), 0)
     contours,_ = cv2.findContours(roi_gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     hulls = [cv2.convexHull(cnt) for cnt in contours]
 
