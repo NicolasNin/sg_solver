@@ -18,4 +18,4 @@ dependencies = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["sg_solver*"]
+include = ["sg_solver*", "board_detection*"]
