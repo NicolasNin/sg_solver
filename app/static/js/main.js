@@ -521,13 +521,33 @@ function setupEventListeners(SG) {
         showDiceModal(SG);
     });
 
-    document.getElementById('btn-photo').addEventListener('click', () => {
-        document.getElementById('photo-input').click();
+    // Photo button - use camera on mobile if supported, file picker otherwise
+    document.getElementById('btn-photo').addEventListener('click', async () => {
+        if (window.StarGeniusCamera && StarGeniusCamera.isMobile() && StarGeniusCamera.isSupported()) {
+            // Mobile with camera support - open camera modal
+            await StarGeniusCamera.open();
+        } else {
+            // Desktop or no camera support - use file picker
+            document.getElementById('photo-input').click();
+        }
     });
 
     document.getElementById('photo-input').addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (file) {
+            await loadFromPhoto(file);
+        }
+    });
+
+    // Camera modal handlers
+    document.getElementById('btn-camera-close').addEventListener('click', () => {
+        StarGeniusCamera.close();
+    });
+
+    document.getElementById('btn-camera-capture').addEventListener('click', async () => {
+        const file = await StarGeniusCamera.captureAsFile();
+        if (file) {
+            StarGeniusCamera.close();
             await loadFromPhoto(file);
         }
     });
