@@ -216,21 +216,27 @@ async def detect_board(image: UploadFile = File(...)):
     Returns detected blockers and pieces.
     """
     try:
-        # Save uploaded image temporarily
-        import tempfile
-        import os
+        # Save uploaded image for debugging
+        from datetime import datetime
         
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-            content = await image.read()
-            tmp.write(content)
-            tmp_path = tmp.name
+        debug_dir = _project_root / "data" / "debug_uploads"
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        debug_path = debug_dir / f"capture_{timestamp}.jpg"
+        
+        content = await image.read()
+        with open(debug_path, "wb") as f:
+            f.write(content)
+        
+        print(f"[DEBUG] Saved uploaded image to: {debug_path}")
         
         try:
-            # Import detection pipeline
-            from board_detection.board_pipeline import board_pipeline
+            # Import detection pipeline (new clean version)
+            from board_detection.board_pipeline_clean import board_pipelineYolo2
             
             # Run detection
-            result = board_pipeline(tmp_path)
+            result = board_pipelineYolo2(str(debug_path))
             
             if result is None:
                 return DetectResponse(
@@ -238,29 +244,37 @@ async def detect_board(image: UploadFile = File(...)):
                     error="Could not detect board in image"
                 )
             
-            pieces_list, white_triangles_ids = result
+            # Parse BoardResult.final_results
+            # final_results is a list of 48 items: 'e' (empty), 'w' (white/blocker), or color name
+            final_results = result.final_results
             
-            # Convert pieces list to dict format
-            # pieces_list is [(piece_name, cell_ids, orientation, anchor), ...]
+            # Extract blockers (white triangles marked as 'w')
+            blockers = []
+            for i, res in enumerate(final_results):
+                cell_id = i + 1  # Cell IDs are 1-indexed
+                if res == 'w':
+                    blockers.append(cell_id)
+            
+            # Extract identified pieces from pipeline
+            # identified_pieces is [(piece_name, orientation, anchor, cell_ids, color), ...]
             pieces = {}
             orientations = {}
             anchors = {}
-            for item in pieces_list:
-                piece_name, cell_ids, orientation, anchor = item
-                if piece_name is None:
-                    continue  # Unidentified cluster
-                cell_list = list(cell_ids) if isinstance(cell_ids, set) else cell_ids
-                if piece_name in pieces:
-                    # Merge if same piece detected multiple times (shouldn't happen)
-                    pieces[piece_name].extend(cell_list)
-                else:
-                    pieces[piece_name] = cell_list
-                    orientations[piece_name] = orientation
-                    if anchor is not None:
-                        anchors[piece_name] = anchor
             
-            # white_triangles_ids are the blockers
-            blockers = white_triangles_ids
+            if result.identified_pieces:
+                for piece_name, orientation, anchor, cell_ids, color in result.identified_pieces:
+                    if piece_name is not None:
+                        pieces[piece_name] = cell_ids
+                        if orientation is not None:
+                            orientations[piece_name] = orientation
+                        if anchor is not None:
+                            anchors[piece_name] = anchor
+                    else:
+                        # Piece not identified, use color as fallback key
+                        pieces[f"unknown_{color}"] = cell_ids
+            
+            print(f"[DEBUG] Detected blockers: {blockers}")
+            print(f"[DEBUG] Detected pieces: {pieces}")
             
             if len(blockers) < 7:
                 return DetectResponse(
@@ -277,8 +291,10 @@ async def detect_board(image: UploadFile = File(...)):
             
             return DetectResponse(success=True, blockers=blockers, pieces=pieces, orientations=orientations, anchors=anchors)
             
-        finally:
-            os.unlink(tmp_path)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return DetectResponse(success=False, error=str(e))
             
     except ImportError as e:
         print(e)
