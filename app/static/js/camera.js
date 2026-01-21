@@ -45,15 +45,51 @@ const StarGeniusCamera = (function () {
         errorEl.classList.add('hidden');
 
         try {
-            // Request camera access - prefer rear camera on mobile
+            // Try to find the widest rear camera by enumerating devices
+            let selectedDeviceId = null;
+
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(d => d.kind === 'videoinput');
+                console.log('[Camera] Found devices:', videoDevices.map(d => d.label));
+
+                // Look for "wide" or "main" camera, avoid "tele" or "zoom"
+                for (const device of videoDevices) {
+                    const label = device.label.toLowerCase();
+                    if (label.includes('back') || label.includes('rear') || label.includes('environment')) {
+                        if (label.includes('wide') || label.includes('main') || label.includes('0')) {
+                            selectedDeviceId = device.deviceId;
+                            console.log('[Camera] Selected wide camera:', device.label);
+                            break;
+                        }
+                    }
+                }
+
+                // Fallback: first rear camera that's NOT telephoto
+                if (!selectedDeviceId) {
+                    for (const device of videoDevices) {
+                        const label = device.label.toLowerCase();
+                        if ((label.includes('back') || label.includes('rear')) &&
+                            !label.includes('tele') && !label.includes('zoom') && !label.includes('2x')) {
+                            selectedDeviceId = device.deviceId;
+                            console.log('[Camera] Selected non-tele rear camera:', device.label);
+                            break;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.log('[Camera] Could not enumerate devices:', e);
+            }
+
+            // Build constraints
             const constraints = {
-                video: {
-                    facingMode: { ideal: 'environment' },  // Rear camera
-                    width: { ideal: 1920 },
-                    height: { ideal: 1080 }
-                },
+                video: selectedDeviceId
+                    ? { deviceId: { exact: selectedDeviceId } }
+                    : { facingMode: { ideal: 'environment' } },
                 audio: false
             };
+
+            console.log('[Camera] Using constraints:', constraints);
 
             videoStream = await navigator.mediaDevices.getUserMedia(constraints);
             video.srcObject = videoStream;

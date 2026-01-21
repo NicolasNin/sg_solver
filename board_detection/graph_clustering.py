@@ -3,7 +3,14 @@ import cv2
 from collections import deque
 from board_detection.patch_classification import extract_patches
 from board_detection.reference_data import CELLS_GRAPH
+from scipy.sparse.csgraph import connected_components
 
+
+def convert_clusters_label_list(labels):
+    #from a np.array list of labels convert to list of list
+    N = np.max(labels)
+    clusters = [list(np.where(labels==i)[0]+1) for i in range(N+1)]
+    return clusters
 
 def cluster_graph(adj, values, threshold,distance):
     visited = set()
@@ -123,15 +130,21 @@ def circular_median(angles, period=2 * np.pi):
     med = np.mod(med_rot + cut_angle, period)
     return med
 
-def compute_color_values(warped,corrected_points,patch_size=80):
-    warped_blur = cv2.GaussianBlur(warped, (3, 3), 0)
+def compute_LABmed_one_patch(patch_lab):
+    L = patch_lab[:,:,0].astype(np.float32)*100/255
+    A = patch_lab[:,:,1].astype(np.float32)-128
+    B = patch_lab[:,:,2].astype(np.float32)-128
+    return np.array([np.median(L),np.median(A),np.median(B)])
+
+def compute_color_values(warped,corrected_points,blur_size=3,patch_size=80):
+    warped_blur = cv2.GaussianBlur(warped, (blur_size, blur_size), 0)
 
     centers = [corrected_points[x] for x in corrected_points]
     warped_blur_lab  = cv2.cvtColor(warped_blur, cv2.COLOR_BGR2LAB)
     warped_blur_fakeHSV  = cv2.cvtColor(warped_blur_lab, cv2.COLOR_BGR2HSV)
     warped_blur_hsv  = cv2.cvtColor(warped_blur, cv2.COLOR_BGR2HSV)
-    patches_lab = extract_patches(warped_blur_lab,centers,80) #a list of  (80, 80, 3) lab images
-    patches_hsv = extract_patches(warped_blur_hsv,centers,80)
+    patches_lab = extract_patches(warped_blur_lab,centers,patch_size) #a list of  (80, 80, 3) lab images
+    patches_hsv = extract_patches(warped_blur_hsv,centers,patch_size)
     patches_fake_hsv = extract_patches(warped_blur_fakeHSV,centers,patch_size)
 
     data_color={}
@@ -160,6 +173,7 @@ def compute_color_values(warped,corrected_points,patch_size=80):
             "hue_med":np.median(patch_hue),
             "fakehue_med":np.median(patch_fakehue)
         }
+
     return data_color
 def distance_color_data(cd1,cd2):
 
@@ -265,6 +279,25 @@ def cluster_graph_edges(adjacency, edge_values, threshold=0.5):
         clusters.setdefault(root, []).append(u)
 
     return list(clusters.values())
+
+def cluster_graph_edges_mat(adjacency, edge_values, threshold=0.5):
+    uf = UnionFind()
+
+    for u, neighbors in adjacency.items():
+        uf.find(u)  # ensure node exists
+        for v in neighbors:
+            p = edge_values[u-1, v-1]
+            if p >= threshold:
+                uf.union(u, v)
+
+    # collect components
+    clusters = {}
+    for u in adjacency:
+        root = uf.find(u)
+        clusters.setdefault(root, []).append(u)
+
+    return list(clusters.values())
+
 
 def draw_cluster_mst(image, clusters, corrected_points):
     vis = image.copy()

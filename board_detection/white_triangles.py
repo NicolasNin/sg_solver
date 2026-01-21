@@ -92,8 +92,8 @@ def count_triangles_big_small(hulls):
     for k,cnt in enumerate(hulls):
         c,P,A,n,eq = triangle_confidence(cnt)
         results.append(filter_triangles_big_or_small(c,P,A,n,eq))
-        print(k,c,"P",P,"A",A,"A/P^2",round(100*A/(P*P),2),n,"eq",eq,"A-6000",abs(A-6000),"A-2550",abs(A-2550),(P>300 and abs(A-6000)<2500) or(P>180 and abs(A-2550)<800),
-        results[-1])
+        #print(k,c,"P",P,"A",A,"A/P^2",round(100*A/(P*P),2),n,"eq",eq,"A-6000",abs(A-6000),"A-2550",abs(A-2550),(P>300 and abs(A-6000)<2500) or(P>180 and abs(A-2550)<800),
+        #results[-1])
     return results
 
 def get_center_of_mass_and_orientation(hull):

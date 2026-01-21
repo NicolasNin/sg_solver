@@ -247,7 +247,7 @@ async def detect_board(image: UploadFile = File(...)):
             # Parse BoardResult.final_results
             # final_results is a list of 48 items: 'e' (empty), 'w' (white/blocker), or color name
             final_results = result.final_results
-            
+            print(final_results)
             # Extract blockers (white triangles marked as 'w')
             blockers = []
             for i, res in enumerate(final_results):
@@ -423,5 +423,14 @@ static_path = Path(__file__).parent / "static"
 app.mount("/", StaticFiles(directory=static_path, html=True), name="static")
 
 if __name__ == "__main__":
-    print("Starting Star Genius server at http://localhost:8000")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    cert_path = Path(__file__).parent / "certs"
+    ssl_keyfile = cert_path / "key.pem"
+    ssl_certfile = cert_path / "cert.pem"
+    
+    if ssl_keyfile.exists() and ssl_certfile.exists():
+        print("Starting Star Genius server at https://0.0.0.0:8000 (HTTPS)")
+        uvicorn.run(app, host="0.0.0.0", port=8000, 
+                    ssl_keyfile=str(ssl_keyfile), ssl_certfile=str(ssl_certfile))
+    else:
+        print("Starting Star Genius server at http://localhost:8000 (No certs found)")
+        uvicorn.run(app, host="0.0.0.0", port=8000)

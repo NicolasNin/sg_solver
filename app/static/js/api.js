@@ -7,8 +7,9 @@
 const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 const API_BASE = IS_LOCAL
     ? 'http://localhost:8000/api'
-    : 'https://sg.ninin.space/api'; // VPS + Caddy HTTPS
+    : `${window.location.origin}/api`; // Dynamic origin (works with HTTP/HTTPS)
 // Solve the current board state
+//'http://192.168.1.11:8000' 'https://sg.ninin.space/api'
 async function solvePuzzle(boardState) {
     const response = await fetch(`${API_BASE}/solve`, {
         method: 'POST',

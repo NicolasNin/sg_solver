@@ -55,6 +55,7 @@ class IntermediateImages:
     cropped_mask: np.ndarray  # Mask of the cropped region
     normalized: np.ndarray  # L-normalized image
     warped: np.ndarray  # Perspective-corrected image
+    warped_img:np.ndarray
     warped_no_bg: np.ndarray  # Warped image with background removed
 
 
@@ -249,6 +250,9 @@ def board_pipeline(image_path):
         #print(id,x-xc,y-yc)
         corrected_points[id] = x,y
     t4=time.time()
+
+
+
     color_data = compute_color_values(warped_img,corrected_points) #on warped img 2 might be the same
     print(f"Color data computed in {time.time()-t4:.2f}s")
     t5=time.time()
@@ -287,8 +291,7 @@ def board_pipelineYolo(image_path,do_correction=True):
     result = results[0]
     
     # Extract cropped board with mask built from keypoints
-    cropped_image, min_pts, cropped_mask,all_keypoints = extract_cropped_board(result, padding=10, expansion_pixels=5)
-
+    cropped_image, min_pts, cropped_mask,all_keypoints,orig_img, bbox_xyxy, crop_offset = extract_cropped_board(result, padding=10, expansion_pixels=5)
 
     print(f"Min pts found {len(min_pts)}")
     normalized_bgr,cur = normalize_L_mean(cropped_image, cropped_mask, target_L_mean=100)
@@ -319,8 +322,9 @@ def board_pipelineYolo(image_path,do_correction=True):
     min_pts_reshape =np.array(min_pts).astype(np.float32).reshape(-1, 2).astype(np.float32)
     min_pt_refs_reshape =np.array(MIN_PTS_REF).astype(np.float32).reshape(-1, 2).astype(np.float32)
     H, status = cv2.findHomography(min_pts_reshape, min_pt_refs_reshape, warp_method  , warp_threshold)
-    image_no_bg = cv2.bitwise_and(cropped_image, cropped_image, mask=cropped_mask_int)
-    warped_img = cv2.warpPerspective(image_no_bg, H,(cropped_image_ref_SHAPE[1],cropped_image_ref_SHAPE[0]))
+
+    image_no_bg = cv2.bitwise_and(cropped_image, cropped_image, mask=cropped_mask_int)# WARNING NOW image_no_bg is back to original L
+    warped_img = cv2.warpPerspective(image_no_bg, H,(cropped_image_ref_SHAPE[1],cropped_image_ref_SHAPE[0])) #warped_img on original L
 
     img_height,img_width = normalized_bgr.shape[:2]
     focal_length_px = img_width *1  # Rough guess for ~50-60° FOV
@@ -355,7 +359,6 @@ def board_pipelineYolo(image_path,do_correction=True):
     print(f"Homography found in {time.time()-t2:.2f}s")
     #compute corrected centroid
     centroid_ref = get_centroid_ref(padding=19)[0]
-    point_warped_naive = MIN_PTS_REF[0]
     h=100
     corrected_points = {}
     corrections ={}
@@ -374,7 +377,7 @@ def board_pipelineYolo(image_path,do_correction=True):
     data_image.update({"corrected_points":corrected_points})  
     t3=time.time()
     white_triangles = find_white_triangles(warped_no_bg,corrected_points) #need to work on clearer warped but need to make sure correction is the same
-    print(f"White triangles found in {time.time()-t3:.2f}s")
+    print(f"White triangles found in {time.time()-t3:.2f}s #{len(white_triangles)}")
     white_triangles_id = [x["best_post"]+1 for x in white_triangles if x["result"]=="big"] # id start at 0
     small_triangles = [x for x in white_triangles if x["result"]=="small" or x["result"]=="small_large"]
     big_triangles = [x for x in white_triangles if x["result"]=="big"]
@@ -400,16 +403,21 @@ def board_pipelineYolo(image_path,do_correction=True):
         white_corrections[id] = x-xc,y-yc
         corrected_points[id] = x,y
 
-    dx = np.median([white_corrections[x][0] for x in white_corrections])
-    dy = np.median([white_corrections[x][1] for x in white_corrections])
-    print(f"Warp correction {corrections[1]}")
-    print(f"median white corrections {dx},{dy}")
-    for idx in corrected_points:
-        if idx not in white_corrections:
-            corrected_points[idx] = round(corrected_points[idx][0]+dx),round(corrected_points[idx][1]+dy)
+    if 1 in corrections:
+        print(f"Warp correction {corrections[1]}")
+    if len(white_corrections)>1:
+        dx = np.median([white_corrections[x][0] for x in white_corrections])
+        dy = np.median([white_corrections[x][1] for x in white_corrections])
+        print(f"median white corrections {dx},{dy}")
+        for idx in corrected_points:
+            if idx not in white_corrections:
+                corrected_points[idx] = round(corrected_points[idx][0]+dx),round(corrected_points[idx][1]+dy)
     
     data_image.update({"white_corrections":white_corrections})
     t4=time.time()
+
+
+
     color_data = compute_color_values(warped_img,corrected_points) #on warped img 2 might be the same
     print(f"Color data computed in {time.time()-t4:.2f}s")
     t5=time.time()
@@ -473,6 +481,7 @@ def board_pipelineYolo(image_path,do_correction=True):
         cropped_mask=cropped_mask,
         normalized=normalized_bgr,
         warped=warped,
+        warped_img = warped_img,
         warped_no_bg=warped_no_bg
     )
     
@@ -493,3 +502,6 @@ def board_pipelineYolo(image_path,do_correction=True):
         all_keypoints=all_keypoints,
         processing_time_ms=total_time * 1000
     )
+
+
+

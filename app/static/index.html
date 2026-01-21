@@ -22,7 +22,10 @@
 </head>
 
 <body>
-    <!-- Debug indicator removed -->
+    <!-- Debug indicator -->
+    <div id="debug-indicator"
+        style="position:fixed; top:0; left:0; right:0; background:rgba(0,0,0,0.8); color:#0f0; padding:5px; z-index:9999; font-family:monospace; font-size:12px; pointer-events:none;">
+    </div>
     <script>
         // Global error handler - catches errors in ALL scripts
         window.onerror = function (msg, url, line, col, error) {
@@ -44,7 +47,8 @@
             <div class="modal-buttons">
                 <button id="btn-random" class="btn btn-primary" data-i18n="randomGame">🎲 Random Game</button>
                 <button id="btn-choose-dice" class="btn btn-secondary" data-i18n="chooseDice">🎯 Choose Dice</button>
-                <button id="btn-photo" class="btn btn-secondary" data-i18n="loadFromPhoto">📷 Load from Photo</button>
+                <button id="btn-photo" class="btn btn-secondary" data-i18n="loadFromPhoto">📷 Gallery/Camera</button>
+                <button id="btn-camera-overlay" class="btn btn-secondary">📸 Live Camera</button>
             </div>
             <input type="file" id="photo-input" accept="image/*" style="display: none;">
         </div>
@@ -97,7 +101,8 @@
     <!-- Main Game Area -->
     <div id="game-container" class="hidden">
         <header>
-            <h1>⭐ <span data-i18n="title">Star Genius</span></h1>
+            <h1><a href="/" style="text-decoration: none; color: inherit;">⭐ <span data-i18n="title">Star
+                        Genius</span></a></h1>
             <div id="header-status" data-i18n="selectPiece">Select a piece from the palette</div>
             <div class="header-controls">
                 <button id="btn-menu" class="btn-icon hidden-desktop" aria-label="Menu">☰</button>
@@ -227,13 +232,13 @@
     </div>
 
     <!-- Scripts -->
-    <script src="js/pieces.js"></script>
-    <script src="js/board.js"></script>
-    <script src="js/game.js"></script>
-    <script src="js/api.js"></script>
-    <script src="js/i18n.js"></script>
-    <script src="js/camera.js"></script>
-    <script src="js/main.js"></script>
+    <script src="js/pieces.js?v=11"></script>
+    <script src="js/board.js?v=11"></script>
+    <script src="js/game.js?v=11"></script>
+    <script src="js/api.js?v=11"></script>
+    <script src="js/i18n.js?v=11"></script>
+    <script src="js/camera.js?v=11"></script>
+    <script src="js/main.js?v=11"></script>
 </body>
 
 </html>

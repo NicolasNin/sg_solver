@@ -1,10 +1,14 @@
 """
 Helper functions for processing YOLO pose detection results.
 """
+from ultralytics import YOLO
 import numpy as np
 import cv2
 from board_detection.reference_data import YOLO_KEY_PTS_ID_MIN
+_yolo_model = YOLO("/home/nicolas/code/star_genius_solver/notebooks/runs/pose/train4/weights/best.pt")  # adjust path
 
+def get_yolo_model():
+    return _yolo_model
 
 def extract_cropped_board(result, padding=10, expansion_pixels=5, keypoint_indices=None):
     """
@@ -22,11 +26,16 @@ def extract_cropped_board(result, padding=10, expansion_pixels=5, keypoint_indic
                          Note: mask is built from ALL keypoints, but only these are returned
     
     Returns:
-        tuple: (cropped_image, translated_keypoints, mask)
+        tuple: (cropped_image, translated_keypoints, mask, all_keypoints_translated, 
+                orig_img, bbox_xyxy, crop_offset)
             - cropped_image: numpy array in BGR format (OpenCV compatible)
             - translated_keypoints: numpy array of shape (N, 2) with x,y coords relative to crop
                                    (only the keypoints specified by keypoint_indices)
             - mask: binary mask same shape as cropped_image, built from ALL keypoints
+            - all_keypoints_translated: all 12 keypoints in cropped coords
+            - orig_img: original image before cropping
+            - bbox_xyxy: bounding box [x1, y1, x2, y2] in original coords
+            - crop_offset: (x_offset, y_offset) used for translation
     """
     if keypoint_indices is None:
         keypoint_indices = YOLO_KEY_PTS_ID_MIN
@@ -44,6 +53,9 @@ def extract_cropped_board(result, padding=10, expansion_pixels=5, keypoint_indic
     y1_padded = max(0, y1 - padding)
     x2_padded = min(img_width, x2 + padding)
     y2_padded = min(img_height, y2 + padding)
+    
+    # Store crop offset for reverse translation
+    crop_offset = (x1_padded, y1_padded)
     
     # Crop the image
     cropped_image = orig_img[y1_padded:y2_padded, x1_padded:x2_padded].copy()
@@ -75,11 +87,13 @@ def extract_cropped_board(result, padding=10, expansion_pixels=5, keypoint_indic
     selected_keypoints = keypoints_data[keypoint_indices, :2]  # Only x, y (drop confidence)
     translated_keypoints = selected_keypoints - np.array([x1_padded, y1_padded])
     
+    
     # Clamp the selected keypoints to be inside the crop (safety check)
     translated_keypoints[:, 0] = np.clip(translated_keypoints[:, 0], 0, crop_width - 1)
     translated_keypoints[:, 1] = np.clip(translated_keypoints[:, 1], 0, crop_height - 1)
     
-    return cropped_image, translated_keypoints, mask,all_keypoints_translated
+    return (cropped_image, translated_keypoints, mask, all_keypoints_translated, 
+            orig_img, bbox_xyxy, crop_offset)
 
 
 def extract_cropped_board_with_expansion(result, initial_padding=10, keypoint_indices=None):

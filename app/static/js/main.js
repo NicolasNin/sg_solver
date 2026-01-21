@@ -7,12 +7,12 @@
 // API Configuration - get base URL (api.js is loaded first)
 function getApiBase() {
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    return isLocal ? 'http://localhost:8000' : 'https://sg.ninin.space';
+    return isLocal ? 'http://localhost:8000' : 'http://192.168.1.11:8000';
 }
 // switch to 'https://sg.ninin.space'; for production
 //http://192.168.1.11:8000 for testing local
 const API_BASE_URL = getApiBase();
-
+console.log(API_BASE_URL);
 // Debug helper - updates visible indicator on page
 function debugLog(msg) {
     console.log('[DEBUG]', msg);
@@ -521,14 +521,18 @@ function setupEventListeners(SG) {
         showDiceModal(SG);
     });
 
-    // Photo button - use camera on mobile if supported, file picker otherwise
+    // Photo button - always use file picker (allows gallery or native camera app)
     document.getElementById('btn-photo').addEventListener('click', async () => {
-        if (window.StarGeniusCamera && StarGeniusCamera.isMobile() && StarGeniusCamera.isSupported()) {
-            // Mobile with camera support - open camera modal
+        // File picker lets user choose: gallery, camera app, or files
+        document.getElementById('photo-input').click();
+    });
+
+    // Live Camera button - use custom overlay camera
+    document.getElementById('btn-camera-overlay').addEventListener('click', async () => {
+        if (window.StarGeniusCamera && StarGeniusCamera.isSupported()) {
             await StarGeniusCamera.open();
         } else {
-            // Desktop or no camera support - use file picker
-            document.getElementById('photo-input').click();
+            alert('Live camera not supported on this device/browser.\nTry using HTTPS or a different browser.');
         }
     });
 

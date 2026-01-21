@@ -11,6 +11,67 @@ import json
 import ast
 
 
+def scan_images_with_json(directory: Path) -> Dict[str, Dict[str, Any]]:
+    """
+    Recursively scan a directory for images and link them to their JSON files.
+    
+    For each image (png/jpg), looks for:
+    1. A JSON file with the same name (e.g., "image.jpg" -> "image.json")
+    2. If not found, falls back to "generic.json" in the same folder
+    
+    Args:
+        directory: Path to the directory to scan recursively
+        
+    Returns:
+        Dictionary mapping image file path to:
+        {
+            "json_path": str,  # Path to the associated JSON file
+            "json_data": Any   # Loaded JSON content
+        }
+        
+    Example:
+        >>> result = scan_images_with_json(Path("/path/to/images"))
+        >>> result["/path/to/images/subfolder/photo.jpg"]
+        {"json_path": "/path/to/images/subfolder/photo.json", "json_data": {...}}
+    """
+    result = {}
+    directory = Path(directory)
+    
+    # Recursively find all image files
+    image_extensions = {'.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG'}
+    
+    for img_path in directory.rglob("*"):
+        if not img_path.is_file():
+            continue
+        if img_path.suffix not in image_extensions:
+            continue
+        
+        # Look for a JSON with the same name
+        json_same_name = img_path.with_suffix('.json')
+        
+        # Look for generic.json in the same folder
+        generic_json = img_path.parent / "generic.json"
+        
+        json_path = None
+        if json_same_name.exists():
+            json_path = json_same_name
+        elif generic_json.exists():
+            json_path = generic_json
+        
+        if json_path is not None:
+            with open(json_path, 'r') as f:
+                json_data = json.load(f)
+            
+            result[str(img_path)] = {
+                "json_path": str(json_path),
+                "json_data": json_data
+            }
+        else:
+            print(f"image {img_path} no json match found")
+    
+    return result
+
+
 def parse_config_file(file_path: Path) -> Dict[str, Any]:
     """
     Parse a Python file containing 'code' and 'config' variables.
