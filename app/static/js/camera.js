@@ -81,11 +81,17 @@ const StarGeniusCamera = (function () {
                 console.log('[Camera] Could not enumerate devices:', e);
             }
 
-            // Build constraints
+            // Build constraints - request high resolution
+            const videoConstraints = selectedDeviceId
+                ? { deviceId: { exact: selectedDeviceId } }
+                : { facingMode: { ideal: 'environment' } };
+
+            // Add resolution constraints for better image quality
+            videoConstraints.width = { ideal: 1920 };
+            videoConstraints.height = { ideal: 1080 };
+
             const constraints = {
-                video: selectedDeviceId
-                    ? { deviceId: { exact: selectedDeviceId } }
-                    : { facingMode: { ideal: 'environment' } },
+                video: videoConstraints,
                 audio: false
             };
 

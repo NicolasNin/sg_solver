@@ -4,6 +4,7 @@ notebooks/
 .ipynb_checkpoints/
 data/
 models/
+mlruns/
 *.py[cod]
 *$py.class
 *:Zone.Identifier
