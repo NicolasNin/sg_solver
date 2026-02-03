@@ -7,7 +7,7 @@
 // API Configuration - get base URL (api.js is loaded first)
 function getApiBase() {
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    return isLocal ? 'http://localhost:8000' : 'http://192.168.1.11:8000';
+    return isLocal ? 'http://localhost:8000' : 'https://sg.ninin.space';
 }
 // switch to 'https://sg.ninin.space'; for production
 //http://192.168.1.11:8000 for testing local

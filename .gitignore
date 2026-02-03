@@ -9,6 +9,8 @@ mlruns/
 *$py.class
 *:Zone.Identifier
 scores.db
+app/certs/
+
 # C extensions
 *.so
 roboflow_api.py
